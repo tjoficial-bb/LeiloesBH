@@ -3,9 +3,14 @@ import cors from 'cors';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import cron from 'node-cron';
+import fs from 'fs';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore';
-import firebaseConfig from './firebase-applet-config.json' with { type: 'json' };
+
+// Load Firebase config more compatibly
+const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
+const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
+
 import { SaraivaScraper } from './scrapers/saraiva.ts';
 import { AuketScraper } from './scrapers/auket.ts';
 
@@ -41,7 +46,7 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
   // Cron Job Dinâmico
   let currentCronTask: any = null;
@@ -206,7 +211,7 @@ async function startServer() {
   }
 
   const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on port ${PORT}`);
   });
 
   server.on('error', (e: any) => {

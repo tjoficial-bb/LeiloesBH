@@ -13,10 +13,10 @@ export class SaraivaScraper implements Scraper {
     page.on('console', msg => console.log('PAGE LOG:', msg.text()));
     
     const formattedUrl = url.startsWith('http') ? url : `https://${url}`;
-    await page.goto(formattedUrl, { waitUntil: 'networkidle' });
+    await page.goto(formattedUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
     
     // Wait a bit more for dynamic content
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(1000);
     
     const data = await page.evaluate(`
       (() => {
@@ -42,7 +42,7 @@ export class SaraivaScraper implements Scraper {
             for (let i = 0; i < 5; i++) { // Aumentado para 5 níveis de busca
               if (!current) break;
               const parentText = current.innerText || current.textContent || '';
-              const matchData = parentText.match(/\\d{2}\/\\d{2}\/\\d{4}/);
+              const matchData = parentText.match(/\\d{2}\\/\\d{2}\\/\\d{4}/);
               const matchValor = parentText.match(/R\\$\\s*[\\d\\.,]+/);
               
               if (matchData && matchValor) {

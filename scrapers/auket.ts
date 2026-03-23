@@ -97,7 +97,7 @@ export class AuketScraper implements Scraper {
               for (let i = 0; i < 5; i++) { // Aumentado para 5 níveis de busca
                 if (!current) break;
                 const parentText = current.innerText || current.textContent || '';
-                const matchData = parentText.match(/\\d{2}\/\\d{2}\/\\d{4}/);
+                const matchData = parentText.match(/\\d{2}\\/\\d{2}\\/\\d{4}/);
                 const matchValor = parentText.match(/R\\$\\s*[\\d\\.,]+/);
                 
                 if (matchData && matchValor) {
