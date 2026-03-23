@@ -1,0 +1,162 @@
+{
+  "entities": {
+    "Imovel": {
+      "title": "Imovel",
+      "description": "Represents a real estate property from an auction.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier" },
+        "titulo": { "type": "string", "description": "Property title" },
+        "descricao": { "type": "string", "description": "Property description" },
+        "preco_avaliacao": { "type": "number", "description": "Appraisal price" },
+        "preco_leilao": { "type": "number", "description": "Auction price" },
+        "desconto": { "type": "number", "description": "Discount percentage" },
+        "endereco": { "type": "string", "description": "Address" },
+        "cidade": { "type": "string", "description": "City" },
+        "estado": { "type": "string", "description": "State" },
+        "tipo_imovel": { "type": "string", "description": "Type of property" },
+        "status": { "type": "string", "description": "Status (active/inactive)" },
+        "destaque": { "type": "boolean", "description": "Highlighted" },
+        "analise_especialista": { "type": "string", "description": "Expert analysis" },
+        "nota_oportunidade": { "type": "number", "description": "Opportunity score" },
+        "risco": { "type": "string", "description": "Risk level" },
+        "liquidez": { "type": "string", "description": "Liquidity" },
+        "lucro_estimado": { "type": "number", "description": "Estimated profit" },
+        "link_original": { "type": "string", "description": "Original auction link" }
+      },
+      "required": ["titulo", "link_original"]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Global site configuration.",
+      "type": "object",
+      "properties": {
+        "siteTitle": { "type": "string", "description": "Website title" },
+        "siteDescription": { "type": "string", "description": "Website description for SEO" },
+        "address": { "type": "string", "description": "Company address" },
+        "email": { "type": "string", "description": "Contact email" },
+        "phone": { "type": "string", "description": "Contact phone" },
+        "aboutText": { "type": "string", "description": "About page content" },
+        "instagram": { "type": "string", "description": "Instagram URL" },
+        "facebook": { "type": "string", "description": "Facebook URL" },
+        "linkedin": { "type": "string", "description": "LinkedIn URL" },
+        "showRoiCalculator": { "type": "boolean", "description": "Toggle ROI calculator visibility" },
+        "showTicker": { "type": "boolean", "description": "Toggle market ticker visibility" },
+        "showTestimonials": { "type": "boolean", "description": "Toggle testimonials section visibility" },
+        "testimonialStyle": { "type": "string", "description": "Display style for testimonials (grid, carousel, list)" },
+        "seoKeywords": { "type": "string", "description": "SEO keywords separated by comma" },
+        "ogImage": { "type": "string", "description": "Open Graph image URL" },
+        "faviconUrl": { "type": "string", "description": "Website favicon URL" },
+        "googleAnalyticsId": { "type": "string", "description": "Google Analytics Measurement ID" },
+        "canonicalUrl": { "type": "string", "description": "Canonical URL of the website" },
+        "twitterHandle": { "type": "string", "description": "Twitter handle (e.g. @tjinvest)" },
+        "robotsPolicy": { "type": "string", "description": "Robots meta tag policy (e.g. index, follow)" },
+        "googleTagManagerId": { "type": "string", "description": "Google Tag Manager ID" }
+      }
+    },
+    "FAQ": {
+      "title": "FAQ",
+      "description": "Frequently Asked Question.",
+      "type": "object",
+      "properties": {
+        "question": { "type": "string", "description": "Question" },
+        "answer": { "type": "string", "description": "Answer" }
+      },
+      "required": ["question", "answer"]
+    },
+    "Testimonial": {
+      "title": "Testimonial",
+      "description": "Customer testimonial.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Customer name" },
+        "text": { "type": "string", "description": "Testimonial text" },
+        "role": { "type": "string", "description": "Customer role or title" },
+        "rating": { "type": "number", "description": "Star rating (1-5)" },
+        "photoUrl": { "type": "string", "description": "URL to customer photo" }
+      },
+      "required": ["name", "text", "rating"]
+    },
+    "BlogPost": {
+      "title": "BlogPost",
+      "description": "An article or post for the blog.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Article title" },
+        "slug": { "type": "string", "description": "URL-friendly slug" },
+        "content": { "type": "string", "description": "Article content (Markdown/HTML)" },
+        "excerpt": { "type": "string", "description": "Short summary for SEO and cards" },
+        "author": { "type": "string", "description": "Author name" },
+        "date": { "type": "string", "description": "Publication date (ISO 8601)" },
+        "imageUrl": { "type": "string", "description": "Main image URL" },
+        "tags": { "type": "array", "description": "List of tags", "items": { "type": "string" } },
+        "category": { "type": "string", "description": "Article category" },
+        "metaTitle": { "type": "string", "description": "SEO meta title" },
+        "metaDescription": { "type": "string", "description": "SEO meta description" },
+        "status": { "type": "string", "description": "Status (draft/published)", "enum": ["draft", "published"] },
+        "featured": { "type": "boolean", "description": "Whether to show on home page" },
+        "updatedAt": { "type": "string", "description": "Last update date (ISO 8601)" },
+        "faqs": { 
+          "type": "array", 
+          "description": "Optional FAQs for the post",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question": { "type": "string" },
+              "answer": { "type": "string" }
+            }
+          }
+        }
+      },
+      "required": ["title", "slug", "content", "date", "status"]
+    },
+    "Favorite": {
+      "title": "Favorite",
+      "description": "A user's favorite property.",
+      "type": "object",
+      "properties": {
+        "imovelId": { "type": "string", "description": "ID of the property" },
+        "addedAt": { "type": "string", "description": "ISO 8601 timestamp" }
+      },
+      "required": ["imovelId", "addedAt"]
+    },
+    "HeaderSettings": {
+      "title": "HeaderSettings",
+      "description": "Header background image settings.",
+      "type": "object",
+      "properties": {
+        "headerBackgroundImage": { "type": "string", "description": "Base64 or URL of the header image" }
+      }
+    }
+  },
+  "firestore": {
+    "/imoveis/{imovelId}": {
+      "schema": "Imovel",
+      "description": "Collection of real estate properties."
+    },
+    "/settings/site": {
+      "schema": "SiteSettings",
+      "description": "Global site settings."
+    },
+    "/settings/header": {
+      "schema": "HeaderSettings",
+      "description": "Header background image."
+    },
+    "/faqs/{faqId}": {
+      "schema": "FAQ",
+      "description": "Collection of FAQs."
+    },
+    "/testimonials/{testimonialId}": {
+      "schema": "Testimonial",
+      "description": "Collection of customer testimonials."
+    },
+    "/posts/{postId}": {
+      "schema": "BlogPost",
+      "description": "Collection of blog articles."
+    },
+    "/users/{userId}/favorites/{favoriteId}": {
+      "schema": "Favorite",
+      "description": "A user's favorite properties."
+    }
+  }
+}

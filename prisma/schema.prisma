@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Imovel {
+  id              String   @id @default(uuid())
+  titulo          String
+  descricao       String
+  preco_avaliacao Decimal
+  preco_leilao    Decimal
+  desconto        Decimal
+  endereco        String
+  cidade          String
+  estado          String
+  tipo_imovel     String
+  status          String   @default("ativo")
+  destaque        Boolean  @default(false)
+  
+  analise_especialista String?
+  nota_oportunidade    Int?
+  risco                String?
+  liquidez             String?
+  lucro_estimado       Decimal?
+  
+  link_original   String
+  criado_em       DateTime @default(now())
+  imagens         Imagem[]
+}
+
+model Imagem {
+  id        String @id @default(uuid())
+  url       String
+  imovel_id String
+  imovel    Imovel @relation(fields: [imovel_id], references: [id])
+}
