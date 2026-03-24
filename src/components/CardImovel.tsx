@@ -266,64 +266,6 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
           )}
         </div>
 
-        <div className="absolute bottom-3 right-3 group">
-          <div className="bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-full shadow-sm border border-stone-100 flex items-center gap-2 cursor-help transition-all hover:bg-white hover:shadow-lg hover:scale-105 active:scale-95">
-            <span className="text-[9px] font-black text-stone-400 uppercase tracking-[0.2em]">Score</span>
-            <span className={`text-sm font-black ${opportunityScore >= 8 ? 'text-emerald-600' : opportunityScore >= 6 ? 'text-amber-500' : 'text-stone-500'}`}>
-              {opportunityScore}/10
-            </span>
-          </div>
-
-          {/* Tooltip Breakdown */}
-          <div className="absolute bottom-full right-0 mb-3 w-80 bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 transform translate-y-2 group-hover:translate-y-0">
-            {/* Arrow */}
-            <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-white border-r border-b border-stone-200 transform rotate-45"></div>
-
-            <div className="flex items-center justify-between mb-5 pb-4 border-b border-stone-100">
-              <div className="flex items-center gap-2.5">
-                <ShieldCheck size={18} className="text-emerald-600" />
-                <h4 className="text-xs font-black text-stone-500 uppercase tracking-[0.15em]">Análise TJ Invest</h4>
-              </div>
-              <span className={`text-sm font-black px-3 py-1 rounded-lg ${opportunityScore >= 8 ? 'bg-emerald-50 text-emerald-700' : opportunityScore >= 6 ? 'bg-amber-50 text-amber-700' : 'bg-stone-50 text-stone-700'}`}>
-                {opportunityScore}/10
-              </span>
-            </div>
-            
-            <div className="space-y-5">
-              {[
-                { label: 'Rentabilidade (ROI)', val: scoreBreakdown.roi.val, score: scoreBreakdown.roi.score, max: scoreBreakdown.roi.max },
-                { label: 'Margem de Desconto', val: scoreBreakdown.desconto.val, score: scoreBreakdown.desconto.score, max: scoreBreakdown.desconto.max },
-                { label: 'Liquidez (Tipo)', val: scoreBreakdown.tipo.val, score: scoreBreakdown.tipo.score, max: scoreBreakdown.tipo.max },
-                { label: 'Segurança (Risco)', val: scoreBreakdown.risco.val, score: scoreBreakdown.risco.score, max: scoreBreakdown.risco.max }
-              ].map((item, idx) => (
-                <div key={idx} className="flex justify-between items-center group/item">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[13px] font-bold text-stone-800 leading-none">{item.label}</span>
-                    <span className="text-[11px] text-stone-500 font-medium">{item.val}</span>
-                  </div>
-                  <div className="flex flex-col items-end gap-1.5">
-                    <span className="text-xs font-black text-stone-900">{item.score}<span className="text-stone-300 font-medium">/{item.max}</span></span>
-                    <div className="w-20 h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-500 ${item.score / item.max >= 0.8 ? 'bg-emerald-500' : item.score / item.max >= 0.5 ? 'bg-amber-400' : 'bg-stone-400'}`}
-                        style={{ width: `${(item.score / item.max) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-6 pt-5 border-t border-stone-100">
-              <div className="bg-stone-50 rounded-xl p-4 border border-stone-100">
-                <p className="text-xs text-stone-700 leading-relaxed font-semibold italic text-center">
-                  "{scoreBreakdown.summary}"
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {imovel.risco_juridico && (
           <div className="absolute bottom-3 left-3">
             <span className={`text-xs font-bold px-3 py-1.5 rounded-full shadow-sm border flex items-center gap-1.5 ${getRiscoColor(imovel.risco_juridico)}`}>

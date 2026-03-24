@@ -13,6 +13,9 @@ export default function Leiloeiros() {
     const unsub = onSnapshot(collection(db, 'leiloeiros'), (snapshot) => {
       setLeiloeiros(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
+    }, (error) => {
+      console.error('Leiloeiros fetch error:', error);
+      setLoading(false);
     });
     return () => unsub();
   }, []);

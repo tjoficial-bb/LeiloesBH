@@ -283,25 +283,38 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
   useEffect(() => {
     const unsubSite = onSnapshot(doc(db, 'settings', 'site'), (docSnap) => {
       if (docSnap.exists()) setSettings(prev => ({ ...prev, ...docSnap.data() }));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'settings/site');
     });
     const unsubHeader = onSnapshot(doc(db, 'settings', 'header'), (docSnap) => {
       if (docSnap.exists()) setSettings(prev => ({ ...prev, headerBackgroundImage: docSnap.data().headerBackgroundImage }));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'settings/header');
     });
     const unsubAssets = onSnapshot(doc(db, 'settings', 'assets'), (docSnap) => {
       if (docSnap.exists()) setSettings(prev => ({ ...prev, ...docSnap.data() }));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'settings/assets');
     });
     const unsubFaqs = onSnapshot(collection(db, 'faqs'), (snapshot) => {
       setFaqs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'faqs');
     });
     const unsubTestimonials = onSnapshot(collection(db, 'testimonials'), (snapshot) => {
       setTestimonials(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'testimonials');
     });
     const unsubLeiloeiros = onSnapshot(collection(db, 'leiloeiros'), (snapshot) => {
       setLeiloeiros(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'leiloeiros');
     });
     return () => {
       unsubSite();
       unsubHeader();
+      unsubAssets();
       unsubFaqs();
       unsubTestimonials();
       unsubLeiloeiros();

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Search, Filter, Globe, Building2, Landmark, MapPin, TrendingDown, Loader2, Plus, ExternalLink, ShieldCheck, Zap, ListPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { db } from './firebase';
+import { db, handleFirestoreError, OperationType } from './firebase';
 import { collection, addDoc, getDocs, query, where, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
 
 export default function DiscoveryDashboard({ onAddProperty }: { onAddProperty: (url: string) => void }) {
@@ -17,22 +17,39 @@ export default function DiscoveryDashboard({ onAddProperty }: { onAddProperty: (
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<any[]>([]);
   const [monitoredAuctioneers, setMonitoredAuctioneers] = useState<any[]>([]);
+  const [trustedAuctioneers, setTrustedAuctioneers] = useState<any[]>([]);
   const [newAuctioneerUrl, setNewAuctioneerUrl] = useState('');
   const [isAddingAuctioneer, setIsAddingAuctioneer] = useState(false);
   const [activeTab, setActiveTab] = useState<'search' | 'monitor'>('search');
+  const [searchAuctioneer, setSearchAuctioneer] = useState('');
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'leiloeiros_monitorados'), (snapshot) => {
+    const unsubscribeMonitored = onSnapshot(collection(db, 'leiloeiros_monitorados'), (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       setMonitoredAuctioneers(list);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'leiloeiros_monitorados');
     });
-    return () => unsubscribe();
+
+    const unsubscribeTrusted = onSnapshot(collection(db, 'leiloeiros'), (snapshot) => {
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setTrustedAuctioneers(list);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'leiloeiros');
+    });
+
+    return () => {
+      unsubscribeMonitored();
+      unsubscribeTrusted();
+    };
   }, []);
 
   const handleSearch = async () => {
     setIsSearching(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      
+      const trustedNames = trustedAuctioneers.slice(0, 20).map(l => l.nome).join(', ');
       
       const prompt = `
         Você é um assistente de busca de leilões de imóveis. 
@@ -45,7 +62,8 @@ export default function DiscoveryDashboard({ onAddProperty }: { onAddProperty: (
         - Banco/Comitente: ${filters.bank === 'all' ? 'Qualquer' : filters.bank}
         - Desconto Mínimo: ${filters.minDiscount}%
         
-        Procure nos principais sites de leiloeiros (ex: Auket, Saraiva, Zuk, Mega Leilões, etc).
+        PRIORIZE buscas nos seguintes sites de leiloeiros confiáveis: ${trustedNames || 'Zuk, Mega Leilões, Sodré Santoro, Frazão, Freitas'}.
+        
         Retorne uma lista de imóveis encontrados com:
         - titulo (em português)
         - endereco (em português)
@@ -101,30 +119,40 @@ export default function DiscoveryDashboard({ onAddProperty }: { onAddProperty: (
     }
   };
 
-  const handleAddAuctioneer = async () => {
-    if (!newAuctioneerUrl) return;
+  const handleAddAuctioneer = async (auctioneer?: any) => {
+    const url = auctioneer?.url || newAuctioneerUrl;
+    if (!url) return;
     setIsAddingAuctioneer(true);
     try {
-      // Usar Gemini para identificar o nome do leiloeiro pela URL
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Qual o nome do leiloeiro deste site: ${newAuctioneerUrl}? Retorne apenas o nome curto.`
-      });
+      let name = auctioneer?.nome;
       
-      const name = response.text?.trim() || 'Leiloeiro';
+      if (!name) {
+        // Usar Gemini para identificar o nome do leiloeiro pela URL
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: `Qual o nome do leiloeiro deste site: ${url}? Retorne apenas o nome curto.`
+        });
+        name = response.text?.trim() || 'Leiloeiro';
+      }
+      
+      // Verificar se já está monitorado
+      if (monitoredAuctioneers.some(a => a.url === url)) {
+        alert('Este leiloeiro já está sendo monitorado.');
+        return;
+      }
       
       await addDoc(collection(db, 'leiloeiros_monitorados'), {
-        url: newAuctioneerUrl,
+        url: url,
         nome: name,
         last_sync: null,
         status: 'active',
-        created_at: new Date().toISOString()
+        added_at: new Date().toISOString()
       });
       
       setNewAuctioneerUrl('');
     } catch (error) {
-      console.error('Error adding auctioneer:', error);
+      handleFirestoreError(error, OperationType.CREATE, 'leiloeiros_monitorados');
     } finally {
       setIsAddingAuctioneer(false);
     }
@@ -163,7 +191,11 @@ export default function DiscoveryDashboard({ onAddProperty }: { onAddProperty: (
   };
 
   const handleDeleteAuctioneer = async (id: string) => {
-    await deleteDoc(doc(db, 'leiloeiros_monitorados', id));
+    try {
+      await deleteDoc(doc(db, 'leiloeiros_monitorados', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `leiloeiros_monitorados/${id}`);
+    }
   };
 
   return (
@@ -381,93 +413,147 @@ export default function DiscoveryDashboard({ onAddProperty }: { onAddProperty: (
             exit={{ opacity: 0, x: -20 }}
             className="space-y-8"
           >
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-amber-100 rounded-2xl">
-                  <Zap className="text-amber-600" size={24} />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-black text-stone-900">Monitoramento Direto</h2>
-                  <p className="text-stone-500 text-sm">Cadastre leiloeiros específicos para monitorar novos lotes automaticamente</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Sidebar: Trusted Auctioneers List */}
+              <div className="lg:col-span-1 space-y-6">
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-stone-100">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-primary/10 rounded-xl">
+                      <ShieldCheck className="text-primary" size={20} />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-stone-900 text-sm uppercase tracking-widest">Leiloeiros Confiáveis</h3>
+                      <p className="text-[10px] text-stone-500">Selecione da sua lista importada</p>
+                    </div>
+                  </div>
+
+                  <div className="relative mb-4">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
+                    <input 
+                      type="text" 
+                      placeholder="Buscar na lista..."
+                      className="w-full pl-9 pr-4 py-2 bg-stone-50 border border-stone-100 rounded-xl text-xs focus:ring-2 focus:ring-primary outline-none transition-all"
+                      value={searchAuctioneer}
+                      onChange={e => setSearchAuctioneer(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                    {trustedAuctioneers
+                      .filter(l => l.nome.toLowerCase().includes(searchAuctioneer.toLowerCase()))
+                      .map((l) => {
+                        const isMonitored = monitoredAuctioneers.some(m => m.url === l.url);
+                        return (
+                          <div key={l.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-stone-50 transition-colors border border-transparent hover:border-stone-100 group">
+                            <div className="min-w-0">
+                              <p className="font-bold text-stone-800 text-xs truncate">{l.nome}</p>
+                              <p className="text-[10px] text-stone-400 truncate">{l.url.replace('https://', '')}</p>
+                            </div>
+                            <button 
+                              onClick={() => handleAddAuctioneer(l)}
+                              disabled={isMonitored || isAddingAuctioneer}
+                              className={`p-2 rounded-lg transition-all ${isMonitored ? 'text-emerald-500 bg-emerald-50' : 'text-stone-400 hover:text-primary hover:bg-primary/10'}`}
+                            >
+                              {isMonitored ? <Check size={16} /> : <Plus size={16} />}
+                            </button>
+                          </div>
+                        );
+                      })}
+                  </div>
                 </div>
               </div>
 
-              <div className="flex gap-4">
-                <div className="flex-grow relative">
-                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
-                  <input 
-                    type="url" 
-                    placeholder="Cole a URL do site do leiloeiro (ex: https://www.zuk.com.br)"
-                    className="w-full pl-10 pr-4 py-4 bg-stone-50 border border-stone-100 rounded-2xl text-sm focus:ring-2 focus:ring-primary outline-none transition-all"
-                    value={newAuctioneerUrl}
-                    onChange={e => setNewAuctioneerUrl(e.target.value)}
-                  />
-                </div>
-                <button 
-                  onClick={handleAddAuctioneer}
-                  disabled={isAddingAuctioneer || !newAuctioneerUrl}
-                  className="bg-stone-900 text-white px-8 rounded-2xl font-bold hover:bg-stone-800 transition-all disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isAddingAuctioneer ? <Loader2 className="animate-spin" size={20} /> : <Plus size={20} />}
-                  Cadastrar Leiloeiro
-                </button>
-              </div>
-            </div>
+              {/* Main: Monitored List */}
+              <div className="lg:col-span-2 space-y-6">
+                <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-amber-100 rounded-2xl">
+                      <Zap className="text-amber-600" size={24} />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black text-stone-900">Monitoramento Ativo</h2>
+                      <p className="text-stone-500 text-sm">Leiloeiros sendo varridos automaticamente por IA</p>
+                    </div>
+                  </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {monitoredAuctioneers.map((auctioneer) => (
-                <div key={auctioneer.id} className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm hover:shadow-md transition-all space-y-4">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-stone-100 rounded-xl flex items-center justify-center font-black text-stone-400">
-                        {auctioneer.nome?.charAt(0)}
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-stone-900">{auctioneer.nome}</h4>
-                        <p className="text-[10px] text-stone-400 truncate max-w-[150px]">{auctioneer.url}</p>
-                      </div>
+                  <div className="flex gap-4">
+                    <div className="flex-grow relative">
+                      <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+                      <input 
+                        type="url" 
+                        placeholder="Adicionar nova URL personalizada..."
+                        className="w-full pl-10 pr-4 py-4 bg-stone-50 border border-stone-100 rounded-2xl text-sm focus:ring-2 focus:ring-primary outline-none transition-all"
+                        value={newAuctioneerUrl}
+                        onChange={e => setNewAuctioneerUrl(e.target.value)}
+                      />
                     </div>
                     <button 
-                      onClick={() => handleDeleteAuctioneer(auctioneer.id)}
-                      className="text-stone-300 hover:text-red-500 transition-colors"
+                      onClick={() => handleAddAuctioneer()}
+                      disabled={isAddingAuctioneer || !newAuctioneerUrl}
+                      className="bg-stone-900 text-white px-8 rounded-2xl font-bold hover:bg-stone-800 transition-all disabled:opacity-50 flex items-center gap-2"
                     >
-                      <X size={18} />
+                      {isAddingAuctioneer ? <Loader2 className="animate-spin" size={20} /> : <Plus size={20} />}
+                      Monitorar
                     </button>
                   </div>
-
-                  <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-stone-400">
-                    <span>Status</span>
-                    <span className="text-emerald-600 flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                      Ativo
-                    </span>
-                  </div>
-
-                  <div className="pt-4 border-t border-stone-50 flex gap-2">
-                    <button 
-                      onClick={() => handleSyncAuctioneer(auctioneer)}
-                      className="flex-grow bg-stone-50 text-stone-600 py-3 rounded-xl font-bold text-xs hover:bg-stone-100 transition-all flex items-center justify-center gap-2"
-                    >
-                      <Zap size={14} />
-                      Sincronizar Agora
-                    </button>
-                    <a 
-                      href={auctioneer.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-3 bg-stone-50 text-stone-400 hover:text-primary rounded-xl transition-all"
-                    >
-                      <ExternalLink size={14} />
-                    </a>
-                  </div>
                 </div>
-              ))}
 
-              {monitoredAuctioneers.length === 0 && (
-                <div className="col-span-full bg-stone-50 border-2 border-dashed border-stone-200 rounded-3xl p-12 text-center">
-                  <p className="text-stone-500 text-sm">Nenhum leiloeiro cadastrado para monitoramento direto.</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {monitoredAuctioneers.map((auctioneer) => (
+                    <div key={auctioneer.id} className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm hover:shadow-md transition-all space-y-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-stone-100 rounded-xl flex items-center justify-center font-black text-stone-400">
+                            {auctioneer.nome?.charAt(0)}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-stone-900">{auctioneer.nome}</h4>
+                            <p className="text-[10px] text-stone-400 truncate max-w-[150px]">{auctioneer.url}</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => handleDeleteAuctioneer(auctioneer.id)}
+                          className="text-stone-300 hover:text-red-500 transition-colors"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-stone-400">
+                        <span>Status</span>
+                        <span className="text-emerald-600 flex items-center gap-1">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                          Monitorando
+                        </span>
+                      </div>
+
+                      <div className="pt-4 border-t border-stone-50 flex gap-2">
+                        <button 
+                          onClick={() => handleSyncAuctioneer(auctioneer)}
+                          className="flex-grow bg-stone-50 text-stone-600 py-3 rounded-xl font-bold text-xs hover:bg-stone-100 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Zap size={14} />
+                          Varrer Agora
+                        </button>
+                        <a 
+                          href={auctioneer.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-3 bg-stone-50 text-stone-400 hover:text-primary rounded-xl transition-all"
+                        >
+                          <ExternalLink size={14} />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+
+                  {monitoredAuctioneers.length === 0 && (
+                    <div className="col-span-full bg-stone-50 border-2 border-dashed border-stone-200 rounded-3xl p-12 text-center">
+                      <p className="text-stone-500 text-sm">Nenhum leiloeiro em monitoramento ativo.</p>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </motion.div>
         )}
@@ -479,4 +565,8 @@ export default function DiscoveryDashboard({ onAddProperty }: { onAddProperty: (
 // Helper icons
 const X = ({ size, className }: { size?: number, className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size || 24} height={size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+);
+
+const Check = ({ size, className }: { size?: number, className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size || 24} height={size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 6 9 17l-5-5"/></svg>
 );

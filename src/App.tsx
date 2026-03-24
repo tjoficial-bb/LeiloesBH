@@ -18,44 +18,12 @@ import BlogPost from './BlogPost';
 import AdminBlog from './AdminBlog';
 import DiscoveryDashboard from './DiscoveryDashboard';
 import { BlogCard } from './components/BlogCard';
-import { db, auth } from './firebase';
+import { db, auth, handleFirestoreError, OperationType } from './firebase';
 import { collection, addDoc, updateDoc, doc, onSnapshot, getDocs, deleteDoc, query, limit, orderBy, getDocFromServer, where, setDoc } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { GoogleGenAI, Type } from "@google/genai";
 
 const ADMIN_EMAIL = 'tjinvestoficial@gmail.com';
-
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
 
 const formatCurrencyInput = (value: string) => {
   const digits = value.replace(/\D/g, '');
@@ -1026,9 +994,9 @@ Retorne apenas o texto da análise formatado em Markdown.`;
       {currentPage === '/faq' && <FAQ isAdmin={isAdmin} />}
       {currentPage === '/blog' && <BlogList onNavigate={navigate} />}
       {currentPage.startsWith('/blog/') && <BlogPost slug={currentPage.split('/blog/')[1]} onNavigate={navigate} />}
-      {currentPage === '/admin' && <AdminSettings onNavigate={navigate} />}
-      {currentPage === '/admin/blog' && <AdminBlog />}
-      {currentPage === '/admin/discovery' && (
+      {currentPage === '/admin' && isAdmin && <AdminSettings onNavigate={navigate} />}
+      {currentPage === '/admin/blog' && isAdmin && <AdminBlog />}
+      {currentPage === '/admin/discovery' && isAdmin && (
         <div className="max-w-7xl mx-auto px-4 py-12">
           <DiscoveryDashboard onAddProperty={handleAddFromDiscovery} />
         </div>

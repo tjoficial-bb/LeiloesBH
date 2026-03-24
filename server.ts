@@ -33,13 +33,19 @@ async function runScrapeUpdate(propertyId: string, url: string) {
       const data = result.data || result;
       console.log(`[Cron] Dados a serem atualizados para ${propertyId}:`, JSON.stringify(data, null, 2));
       
-      // Filtrar campos vazios para não sobrescrever dados existentes que podem ter sido inseridos manualmente
+      // Filtrar campos vazios e restringir apenas aos campos permitidos pelas regras de segurança
       const updatePayload: any = {
         last_updated: new Date().toISOString()
       };
       
+      const allowedFields = [
+        'valor_avaliacao', 'preco_leilao', 'primeira_praca_data', 
+        'primeira_praca_valor', 'segunda_praca_data', 'segunda_praca_valor', 
+        'desconto', 'preco_avaliacao'
+      ];
+      
       Object.keys(data).forEach(key => {
-        if (data[key] !== undefined && data[key] !== null && data[key] !== '') {
+        if (allowedFields.includes(key) && data[key] !== undefined && data[key] !== null && data[key] !== '') {
           updatePayload[key] = data[key];
         }
       });
