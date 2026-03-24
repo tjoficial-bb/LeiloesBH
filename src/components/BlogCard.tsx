@@ -43,7 +43,7 @@ export function BlogCard({ post, onNavigate }: { post: BlogPost, onNavigate: (pa
           {post.title}
         </h3>
         
-        <p className="text-stone-500 text-sm leading-relaxed mb-6 line-clamp-3">
+        <p className="text-stone-500 text-sm leading-relaxed mb-4 md:mb-6 line-clamp-2 md:line-clamp-3">
           {post.excerpt}
         </p>
         

@@ -126,7 +126,6 @@ export class AuketScraper implements Scraper {
         const extractPracaInfo = (keywords: string[]) => {
           const elements = Array.from(document.querySelectorAll('*')).filter(el => {
             const text = el.textContent || '';
-            // Relaxed check: no longer requiring el.children.length === 0
             return keywords.some(k => text.toLowerCase().includes(k.toLowerCase())) && text.length < 150;
           });
           
@@ -137,110 +136,23 @@ export class AuketScraper implements Scraper {
           const dateRegex = /(\d{1,2}[\/\.]\d{1,2}[\/\.]\d{2,4}(?:\s+\d{2}:\d{2})?|(?:\d{1,2}\s+de\s+(?:janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+\d{4}))/i;
 
           for (const el of elements) {
-            // Check if the element itself has both
-            const elText = (el as HTMLElement).innerText || el.textContent || '';
-            const lowerElText = elText.toLowerCase();
+            // Busca apenas dentro do contexto do elemento pai imediato ou irmão próximo
+            const parent = el.parentElement;
+            if (!parent) continue;
             
-            // Encontrar qual keyword deu match para buscar depois dela
-            let bestKeyword = '';
-            for (const k of keywords) {
-              if (lowerElText.includes(k.toLowerCase())) {
-                if (k.length > bestKeyword.length) bestKeyword = k;
-              }
+            const contextText = (parent as HTMLElement).innerText || parent.textContent || '';
+            
+            if (!foundData) {
+              const matchData = contextText.match(dateRegex);
+              if (matchData) foundData = matchData[1];
             }
             
-            const textAfterKeyword = elText.substring(lowerElText.indexOf(bestKeyword.toLowerCase()) + bestKeyword.length);
-            
-            const elMatchData = textAfterKeyword.match(dateRegex);
-            const elMatchValor = textAfterKeyword.match(currencyRegex);
-            
-            if (elMatchData && !foundData) foundData = elMatchData[1];
-            if (elMatchValor && !foundValor) foundValor = 'R$ ' + elMatchValor[1];
+            if (!foundValor) {
+              const matchValor = contextText.match(currencyRegex);
+              if (matchValor) foundValor = 'R$ ' + matchValor[1];
+            }
 
             if (foundData && foundValor) return { data: foundData, valor: foundValor };
-
-            let current: Element | null = el;
-            
-            // Busca em até 15 níveis de parentesco (ainda mais profundo)
-            for (let i = 0; i < 15; i++) {
-              if (!current) break;
-              const parentText = (current as HTMLElement).innerText || current.textContent || '';
-              const lowerParentText = parentText.toLowerCase();
-              
-              // Re-find the best keyword in the parent to get the correct textAfterKeyword
-              let parentBestKeyword = '';
-              for (const k of keywords) {
-                if (lowerParentText.includes(k.toLowerCase())) {
-                  if (k.length > parentBestKeyword.length) parentBestKeyword = k;
-                }
-              }
-
-              if (parentBestKeyword) {
-                const textAfterKeywordParent = parentText.substring(lowerParentText.indexOf(parentBestKeyword.toLowerCase()) + parentBestKeyword.length);
-
-                if (!foundData) {
-                  const matchData = textAfterKeywordParent.match(dateRegex);
-                  if (matchData) foundData = matchData[1];
-                }
-                
-                if (!foundValor) {
-                  const matchValor = textAfterKeywordParent.match(currencyRegex);
-                  if (matchValor) foundValor = 'R$ ' + matchValor[1];
-                }
-              }
-              
-              if (foundData && foundValor) return { data: foundData, valor: foundValor };
-              
-              // Tenta buscar nos irmãos
-              const siblings = Array.from(current.parentElement?.children || []);
-              for (const sibling of siblings) {
-                if (sibling === current) continue;
-                const siblingText = (sibling as HTMLElement).innerText || sibling.textContent || '';
-                
-                if (!foundData) {
-                  const matchData = siblingText.match(dateRegex);
-                  if (matchData) foundData = matchData[1];
-                }
-                
-                if (!foundValor) {
-                  const matchValor = siblingText.match(currencyRegex);
-                  if (matchValor) foundValor = 'R$ ' + matchValor[1];
-                }
-                
-                if (foundData && foundValor) return { data: foundData, valor: foundValor };
-              }
-              
-              current = current.parentElement;
-            }
-          }
-
-          // Fallback: Busca global se não encontrou nada específico perto dos elementos
-          if (!foundData || !foundValor) {
-            const bodyText = (document.body as HTMLElement).innerText || '';
-            const lines = bodyText.split('\n');
-            for (const line of lines) {
-              if (keywords.some(k => line.toLowerCase().includes(k.toLowerCase()))) {
-                const lowerLine = line.toLowerCase();
-                // Encontrar qual keyword deu match para buscar depois dela
-                let bestKeyword = '';
-                for (const k of keywords) {
-                  if (lowerLine.includes(k.toLowerCase())) {
-                    if (k.length > bestKeyword.length) bestKeyword = k;
-                  }
-                }
-                
-                const textAfterKeyword = line.substring(lowerLine.indexOf(bestKeyword.toLowerCase()) + bestKeyword.length);
-                
-                if (!foundData) {
-                  const matchData = textAfterKeyword.match(dateRegex);
-                  if (matchData) foundData = matchData[1];
-                }
-                if (!foundValor) {
-                  const matchValor = textAfterKeyword.match(currencyRegex);
-                  if (matchValor) foundValor = 'R$ ' + matchValor[1];
-                }
-              }
-            }
           }
 
           return { data: foundData, valor: foundValor };
