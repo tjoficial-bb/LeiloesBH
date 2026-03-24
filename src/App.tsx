@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom';
 import { CardImovel } from './components/CardImovel';
 import { Layout } from './components/Layout';
 import { motion } from 'motion/react';
-import { Heart, Filter, ChevronDown } from 'lucide-react';
+import { Heart, Filter, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import Sobre from './Sobre';
 import FAQ from './FAQ';
 import AdminSettings from './AdminSettings';
@@ -42,6 +42,7 @@ export default function App() {
   const [testimonials, setTestimonials] = useState<any[]>([]);
   const [featuredPosts, setFeaturedPosts] = useState<any[]>([]);
   const carouselRef = useRef<HTMLDivElement>(null);
+  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [editingImovel, setEditingImovel] = useState<any>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -346,7 +347,7 @@ export default function App() {
   }, [isSettingsLoading, settings.showTicker, settings.tickerUpdateInterval, settings.lastTickerUpdate, user?.email]);
 
   useEffect(() => {
-    if (settings.testimonialStyle === 'carousel' && testimonials.length > 0) {
+    if (settings.testimonialStyle === 'carousel' && testimonials.length > 0 && !isCarouselPaused) {
       const interval = setInterval(() => {
         if (carouselRef.current) {
           const { scrollLeft, scrollWidth, clientWidth } = carouselRef.current;
@@ -356,10 +357,22 @@ export default function App() {
             carouselRef.current.scrollBy({ left: 300, behavior: 'smooth' });
           }
         }
-      }, 5000);
+      }, 3000); // Reduced from 5000 to 3000 to increase speed
       return () => clearInterval(interval);
     }
-  }, [settings.testimonialStyle, testimonials]);
+  }, [settings.testimonialStyle, testimonials, isCarouselPaused]);
+
+  const scrollCarouselLeft = () => {
+    if (carouselRef.current) {
+      carouselRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+    }
+  };
+
+  const scrollCarouselRight = () => {
+    if (carouselRef.current) {
+      carouselRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+    }
+  };
 
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
@@ -760,13 +773,9 @@ Retorne apenas o texto da análise formatado em Markdown.`;
               ))
             ) : (imoveisFiltrados && imoveisFiltrados.length > 0) ? (
               imoveisFiltrados.map((imovel, index) => (
-                <motion.div 
+                <div 
                   key={imovel.id} 
                   className="relative"
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.1 }}
                 >
                   <CardImovel 
                     imovel={imovel} 
@@ -790,7 +799,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                       <button onClick={() => handleDelete(imovel.id)} className="text-red-600 font-medium hover:underline">Excluir</button>
                     </div>
                   )}
-                </motion.div>
+                </div>
               ))
             ) : (
               <div className="col-span-full text-center py-12 text-stone-500">
@@ -807,34 +816,58 @@ Retorne apenas o texto da análise formatado em Markdown.`;
               </div>
 
               {settings.testimonialStyle === 'carousel' ? (
-                <div ref={carouselRef} className="flex overflow-x-auto gap-6 pb-8 snap-x no-scrollbar scroll-smooth">
-                  {testimonials.map((t, i) => (
-                    <motion.div 
-                      key={t.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      whileInView={{ opacity: 1, scale: 1 }}
-                      viewport={{ once: true }}
-                      className="min-w-[300px] md:min-w-[400px] snap-center bg-white p-8 rounded-2xl shadow-sm border border-stone-100 flex flex-col hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex items-center gap-4 mb-6">
-                        {t.photoUrl ? (
-                          <img src={t.photoUrl} alt={t.name} className="w-14 h-14 rounded-full object-cover border-2 border-primary/10" referrerPolicy="no-referrer" />
-                        ) : (
-                          <div className="w-14 h-14 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold text-xl">
-                            {t.name.charAt(0)}
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-bold text-stone-900 text-lg leading-tight">{t.name}</p>
-                          <p className="text-xs text-stone-400 font-medium uppercase tracking-wider">{t.role}</p>
-                          <div className="flex text-amber-400 text-xs mt-1">
-                            {"★".repeat(t.rating || 5)}{"☆".repeat(5 - (t.rating || 5))}
+                <div 
+                  className="relative group"
+                  onMouseEnter={() => setIsCarouselPaused(true)}
+                  onMouseLeave={() => setIsCarouselPaused(false)}
+                  onTouchStart={() => setIsCarouselPaused(true)}
+                  onTouchEnd={() => setIsCarouselPaused(false)}
+                >
+                  <button 
+                    onClick={scrollCarouselLeft}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 md:-translate-x-6 z-10 bg-white shadow-lg border border-stone-100 rounded-full p-2 text-stone-600 hover:text-primary hover:scale-110 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
+                    aria-label="Anterior"
+                  >
+                    <ChevronLeft size={24} />
+                  </button>
+                  
+                  <div ref={carouselRef} className="flex overflow-x-auto gap-6 pb-8 snap-x no-scrollbar scroll-smooth">
+                    {testimonials.map((t, i) => (
+                      <motion.div 
+                        key={t.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        whileInView={{ opacity: 1, scale: 1 }}
+                        viewport={{ once: true }}
+                        className="min-w-[300px] md:min-w-[400px] snap-center bg-white p-8 rounded-2xl shadow-sm border border-stone-100 flex flex-col hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-center gap-4 mb-6">
+                          {t.photoUrl ? (
+                            <img src={t.photoUrl} alt={t.name} className="w-14 h-14 rounded-full object-cover border-2 border-primary/10" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-14 h-14 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold text-xl">
+                              {t.name.charAt(0)}
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-bold text-stone-900 text-lg leading-tight">{t.name}</p>
+                            <p className="text-xs text-stone-400 font-medium uppercase tracking-wider">{t.role}</p>
+                            <div className="flex text-amber-400 text-xs mt-1">
+                              {"★".repeat(t.rating || 5)}{"☆".repeat(5 - (t.rating || 5))}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <p className="text-stone-600 leading-relaxed mb-4 flex-grow italic text-lg">"{t.text}"</p>
-                    </motion.div>
-                  ))}
+                        <p className="text-stone-600 leading-relaxed mb-4 flex-grow italic text-lg">"{t.text}"</p>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  <button 
+                    onClick={scrollCarouselRight}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 md:translate-x-6 z-10 bg-white shadow-lg border border-stone-100 rounded-full p-2 text-stone-600 hover:text-primary hover:scale-110 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
+                    aria-label="Próximo"
+                  >
+                    <ChevronRight size={24} />
+                  </button>
                 </div>
               ) : settings.testimonialStyle === 'marquee' ? (
                 <div className="relative overflow-hidden py-4">
@@ -875,7 +908,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                       initial={{ opacity: 0, x: -20 }}
                       whileInView={{ opacity: 1, x: 0 }}
                       viewport={{ once: true }}
-                      transition={{ delay: i * 0.1 }}
+                      transition={{ duration: 0.3 }}
                       className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 flex gap-6 items-start hover:shadow-md transition-shadow"
                     >
                       {t.photoUrl ? (
@@ -906,7 +939,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                       initial={{ opacity: 0, y: 10 }}
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
-                      transition={{ delay: i * 0.05 }}
+                      transition={{ duration: 0.3 }}
                       className="bg-stone-50 p-5 rounded-xl border border-stone-200 flex flex-col"
                     >
                       <div className="flex text-amber-400 text-[10px] mb-3">
@@ -931,7 +964,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                       initial={{ opacity: 0, y: 20 }}
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
-                      transition={{ delay: i * 0.1 }}
+                      transition={{ duration: 0.3 }}
                       className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 flex flex-col hover:shadow-md transition-shadow"
                     >
                       <div className="flex items-center gap-4 mb-4">
@@ -982,7 +1015,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    transition={{ delay: index * 0.1 }}
+                    transition={{ duration: 0.3 }}
                   >
                     <BlogCard post={post} onNavigate={navigate} />
                   </motion.div>
