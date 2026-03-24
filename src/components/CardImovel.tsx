@@ -560,7 +560,7 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
                               <TrendingUp size={32} />
                             </div>
                             <p className="text-stone-500 font-medium max-w-xs">
-                              Nossa IA está processando a análise detalhada deste imóvel. Em breve, você terá um relatório completo sobre os riscos e oportunidades.
+                              Nossos especialistas estão trabalhando na análise detalhada deste imóvel. Em breve, você terá um relatório completo sobre os riscos e oportunidades.
                             </p>
                           </div>
                         )}

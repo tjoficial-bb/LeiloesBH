@@ -133,26 +133,31 @@ export class AuketScraper implements Scraper {
           let foundValor = '';
 
           const currencyRegex = /(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/i;
-          const dateRegex = /(\d{1,2}[\/\.]\d{1,2}[\/\.]\d{2,4}(?:\s+\d{2}:\d{2})?|(?:\d{1,2}\s+de\s+(?:janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+\d{4}))/i;
+          const dateRegex = /(\d{1,2}[\/\.]\d{1,2}[\/\.]\d{2,4}(?:\s+\d{2}:\d{2})?)/i;
 
           for (const el of elements) {
-            // Busca apenas dentro do contexto do elemento pai imediato ou irmão próximo
-            const parent = el.parentElement;
-            if (!parent) continue;
-            
-            const contextText = (parent as HTMLElement).innerText || parent.textContent || '';
-            
-            if (!foundData) {
-              const matchData = contextText.match(dateRegex);
-              if (matchData) foundData = matchData[1];
+            let container = el.parentElement;
+            for (let i = 0; i < 3; i++) {
+              if (!container) break;
+              const contextText = (container as HTMLElement).innerText || '';
+              
+              if (!foundData) {
+                const matchData = contextText.match(dateRegex);
+                if (matchData) {
+                  foundData = matchData[1];
+                }
+              }
+              
+              if (!foundValor) {
+                const matchValor = contextText.match(currencyRegex);
+                if (matchValor) {
+                  foundValor = 'R$ ' + matchValor[1];
+                }
+              }
+              
+              if (foundData && foundValor) return { data: foundData, valor: foundValor };
+              container = container.parentElement;
             }
-            
-            if (!foundValor) {
-              const matchValor = contextText.match(currencyRegex);
-              if (matchValor) foundValor = 'R$ ' + matchValor[1];
-            }
-
-            if (foundData && foundValor) return { data: foundData, valor: foundValor };
           }
 
           return { data: foundData, valor: foundValor };
@@ -205,8 +210,8 @@ export class AuketScraper implements Scraper {
           return '';
         };
 
-        const p1Keywords = ['1ª Praça', '1º Leilão', '1ª Praca', '1º Leilao', 'Primeira Praça', 'Primeiro Leilão', '1º Ciclo', '1ª Data', '1º Encerramento', '1º Praça', '1° Praça', '1ª Leilão', '1ª Etapa', '1º Período', 'Data 1', '1º Prazo', '1ª PRAÇA', '1ª PRACA'];
-        const p2Keywords = ['2ª Praça', '2º Leilão', '2ª Praca', '2º Leilao', 'Segunda Praça', 'Segundo Leilão', '2º Ciclo', '2ª Data', '2º Encerramento', '2º Praça', '2° Praça', '2ª Leilão', '2ª Etapa', '2º Período', 'Data 2', '2º Prazo', '2ª PRAÇA', '2ª PRACA'];
+        const p1Keywords = ['1ª Praça', '1º Leilão', '1ª Praca', '1º Leilao', 'Primeira Praça', 'Primeiro Leilão', '1º Ciclo', '1ª Data', '1º Encerramento', '1º Praça', '1° Praça', '1ª Leilão', '1ª Etapa', '1º Período', 'Data 1', '1º Prazo', '1ª PRAÇA', '1ª PRACA', '1ª praca', '1a praça', '1° Praça'];
+        const p2Keywords = ['2ª Praça', '2º Leilão', '2ª Praca', '2º Leilao', 'Segunda Praça', 'Segundo Leilão', '2º Ciclo', '2ª Data', '2º Encerramento', '2º Praça', '2° Praça', '2ª Leilão', '2ª Etapa', '2º Período', 'Data 2', '2º Prazo', '2ª PRAÇA', '2ª PRACA', '2ª praca', '2a praça'];
 
         const p1 = extractPracaInfo(p1Keywords);
         const p2 = extractPracaInfo(p2Keywords);

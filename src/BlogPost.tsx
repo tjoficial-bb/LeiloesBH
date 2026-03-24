@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { getPostBySlug, BlogPost as BlogPostType, getRelatedPosts } from './services/blogService';
-import { Calendar, User, Clock, Share2, Facebook, Instagram, Linkedin, ArrowLeft, MessageCircle, List, ChevronRight, Award, ShieldCheck, CheckCircle2, HelpCircle, RefreshCw } from 'lucide-react';
+import { Calendar, User, Clock, Share2, Facebook, Instagram, Linkedin, ArrowLeft, MessageCircle, List, ChevronRight, ChevronDown, Award, ShieldCheck, CheckCircle2, HelpCircle, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ReactMarkdown from 'react-markdown';
@@ -15,6 +15,8 @@ export default function BlogPost({ slug, onNavigate }: { slug: string, onNavigat
   const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState<any>(null);
   const [toc, setToc] = useState<{ id: string, text: string, level: number }[]>([]);
+  const [headerMap, setHeaderMap] = useState<Record<string, string>>({});
+  const [isTocOpen, setIsTocOpen] = useState(false);
 
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, {
@@ -74,13 +76,16 @@ export default function BlogPost({ slug, onNavigate }: { slug: string, onNavigat
           // Generate ToC
           const headers = data.content.match(/^\s*#{2,3}\s*.+/gm);
           if (headers) {
+            const newHeaderMap: Record<string, string> = {};
             const tocItems = headers.map(h => {
               const level = h.trim().startsWith('###') ? 3 : 2;
               const text = h.replace(/^\s*#{2,3}\s*/, '').replace(/\*\*/g, '').replace(/\*/g, '').trim();
               const id = slugify(text);
+              newHeaderMap[text] = id;
               return { id, text, level };
             });
             setToc(tocItems);
+            setHeaderMap(newHeaderMap);
           }
 
           // Fetch related posts
@@ -338,38 +343,48 @@ export default function BlogPost({ slug, onNavigate }: { slug: string, onNavigat
           <div className="flex-1 order-1 md:order-2 max-w-none">
             {/* Table of Contents - Mobile */}
           {toc.length > 0 && (
-            <div className="md:hidden mb-12 bg-stone-50 rounded-3xl p-8 border border-stone-100">
-              <p className="text-xs font-black text-stone-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                <List size={16} />
-                Neste Artigo
-              </p>
-              <nav className="space-y-4">
-                {toc.map((item, i) => (
-                  <a 
-                    key={i}
-                    href={`#${item.id}`}
-                    className={`block text-base font-bold transition-all hover:text-primary ${item.level === 3 ? 'pl-4 text-stone-400' : 'text-stone-600'}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      const el = document.getElementById(item.id);
-                      if (el) {
-                        const offset = 100;
-                        const bodyRect = document.body.getBoundingClientRect().top;
-                        const elementRect = el.getBoundingClientRect().top;
-                        const elementPosition = elementRect - bodyRect;
-                        const offsetPosition = elementPosition - offset;
+            <div className="md:hidden mb-12 bg-stone-50 rounded-2xl p-6 border border-stone-100">
+              <button 
+                onClick={() => setIsTocOpen(!isTocOpen)}
+                className="w-full flex items-center justify-between text-xs font-black text-stone-400 uppercase tracking-widest"
+              >
+                <span className="flex items-center gap-2">
+                  <List size={16} />
+                  Neste Artigo
+                </span>
+                <ChevronDown size={16} className={`transition-transform ${isTocOpen ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {isTocOpen && (
+                <nav className="space-y-4 mt-6">
+                  {toc.map((item, i) => (
+                    <a 
+                      key={i}
+                      href={`#${item.id}`}
+                      className={`block text-sm font-bold transition-all hover:text-primary ${item.level === 3 ? 'pl-4 text-stone-400' : 'text-stone-600'}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const el = document.getElementById(item.id);
+                        if (el) {
+                          const offset = 100;
+                          const bodyRect = document.body.getBoundingClientRect().top;
+                          const elementRect = el.getBoundingClientRect().top;
+                          const elementPosition = elementRect - bodyRect;
+                          const offsetPosition = elementPosition - offset;
 
-                        window.scrollTo({
-                          top: offsetPosition,
-                          behavior: 'smooth'
-                        });
-                      }
-                    }}
-                  >
-                    {item.text}
-                  </a>
-                ))}
-              </nav>
+                          window.scrollTo({
+                            top: offsetPosition,
+                            behavior: 'smooth'
+                          });
+                          setIsTocOpen(false);
+                        }
+                      }}
+                    >
+                      {item.text}
+                    </a>
+                  ))}
+                </nav>
+              )}
             </div>
           )}
 
@@ -384,14 +399,17 @@ export default function BlogPost({ slug, onNavigate }: { slug: string, onNavigat
               prose-a:text-primary prose-a:font-bold prose-a:no-underline hover:prose-a:underline transition-all">
               <ReactMarkdown 
                 components={{
+                  h1: ({node, ...props}) => {
+                    return null;
+                  },
                   h2: ({node, ...props}) => {
                     const text = getHeaderText(props.children);
-                    const id = slugify(text);
+                    const id = headerMap[text] || slugify(text);
                     return <h2 id={id} {...props} />;
                   },
                   h3: ({node, ...props}) => {
                     const text = getHeaderText(props.children);
-                    const id = slugify(text);
+                    const id = headerMap[text] || slugify(text);
                     return <h3 id={id} {...props} />;
                   },
                   a: ({node, ...props}) => {

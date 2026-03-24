@@ -318,41 +318,61 @@ export default function App() {
       if (now - lastUpdate > intervalMs) {
         isUpdatingTicker.current = true;
         console.log('Atualizando ticker via IA...');
-        try {
-          const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-          if (!apiKey) return;
+        
+        const maxRetries = 5;
+        let attempt = 0;
 
-          const ai = new GoogleGenAI({ apiKey });
-          const prompt = currentSettings.tickerPrompt || 'Gere 10 itens para uma barra de cotações de leilões de imóveis. Misture notícias curtas com notícias mais detalhadas (acima de 20 palavras). Inclua SELIC, IPCA, Dólar, Euro e novidades do mercado. Use um tom profissional.';
-          
-          const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: prompt,
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    label: { type: Type.STRING },
-                    value: { type: Type.STRING },
-                    trend: { type: Type.STRING, enum: ['up', 'down', 'neutral'] }
-                  },
-                  required: ['label', 'value', 'trend']
+        const executeTickerUpdate = async (): Promise<any> => {
+          try {
+            const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+            if (!apiKey) throw new Error("Chave de API não encontrada.");
+
+            const ai = new GoogleGenAI({ apiKey });
+            const prompt = currentSettings.tickerPrompt || 'Gere 10 itens para uma barra de cotações de leilões de imóveis. Misture notícias curtas com notícias mais detalhadas (acima de 20 palavras). Inclua SELIC, IPCA, Dólar, Euro e novidades do mercado. Use um tom profissional.';
+            
+            const response = await ai.models.generateContent({
+              model: "gemini-3.1-flash-lite-preview",
+              contents: prompt,
+              config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      label: { type: Type.STRING },
+                      value: { type: Type.STRING },
+                      trend: { type: Type.STRING, enum: ['up', 'down', 'neutral'] }
+                    },
+                    required: ['label', 'value', 'trend']
+                  }
                 }
               }
-            }
-          });
+            });
 
-          const tickerItems = JSON.parse(response.text);
+            return JSON.parse(response.text);
+          } catch (error: any) {
+            const errorObj = typeof error === 'string' ? JSON.parse(error) : error;
+            if ((errorObj?.error?.code === 429 || errorObj?.status === 'RESOURCE_EXHAUSTED') && attempt < maxRetries) {
+              attempt++;
+              // Backoff muito mais agressivo: 10s, 30s, 90s, 270s, 810s
+              const delay = Math.pow(3, attempt) * 10000;
+              console.warn(`Cota esgotada. Tentativa ${attempt} de ${maxRetries}. Tentando novamente em ${delay}ms...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              return executeTickerUpdate();
+            }
+            throw error;
+          }
+        };
+
+        try {
+          const tickerItems = await executeTickerUpdate();
           await updateDoc(doc(db, 'settings', 'site'), {
             tickerItems,
             lastTickerUpdate: now
           });
           console.log('Ticker updated successfully!');
         } catch (error) {
-          // If quota is exhausted, we don't want to spam errors
           console.error('Ticker update error:', error);
         } finally {
           isUpdatingTicker.current = false;
@@ -361,7 +381,7 @@ export default function App() {
     };
 
     updateTicker();
-    const interval = setInterval(updateTicker, 5 * 60 * 1000); // Verifica a cada 5 min
+    const interval = setInterval(updateTicker, 30 * 60 * 1000); // Verifica a cada 30 min
     return () => clearInterval(interval);
   }, [isSettingsLoading, settings.showTicker, settings.tickerUpdateInterval, user?.email]);
 
@@ -451,7 +471,7 @@ export default function App() {
         console.log(`Processando ${i + 1}/${urlList.length}:`, currentUrl);
         
         try {
-          const response = await fetch(`${window.location.origin}/api/scrape`, {
+          const response = await fetch('/api/scrape', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: currentUrl })
@@ -489,7 +509,7 @@ export default function App() {
     if (!(user?.email === ADMIN_EMAIL)) return;
     setIsProcessing('discovery');
     try {
-      const response = await fetch(`${window.location.origin}/api/scrape`, {
+      const response = await fetch('/api/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: discoveryUrl })
@@ -518,14 +538,19 @@ export default function App() {
   const generateAnalysis = async () => {
     if (!editingImovel) return;
     setIsGeneratingAnalysis(true);
-    try {
-      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("Chave de API do Gemini não encontrada. Verifique se ela está configurada no menu 'Secrets'.");
-      }
-      
-      const ai = new GoogleGenAI({ apiKey });
-      const prompt = `Você é um especialista sênior em leilões de imóveis da TJ Invest. 
+    
+    const maxRetries = 5;
+    let attempt = 0;
+
+    const executeGeneration = async (): Promise<string> => {
+      try {
+        const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+          throw new Error("Chave de API do Gemini não encontrada.");
+        }
+        
+        const ai = new GoogleGenAI({ apiKey });
+        const prompt = `Você é um especialista sênior em leilões de imóveis da TJ Invest. 
 Sua tarefa é realizar uma análise técnica e estratégica profunda do imóvel abaixo para um investidor de alto padrão.
 
 IMPORTANTE: A ANÁLISE DEVE SER ESCRITA EXCLUSIVAMENTE EM PORTUGUÊS DO BRASIL.
@@ -552,15 +577,46 @@ ${JSON.stringify(editingImovel, null, 2)}
 
 Retorne apenas o texto da análise formatado em Markdown.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-      });
+        const response = await ai.models.generateContent({
+          model: "gemini-3.1-flash-lite-preview",
+          contents: prompt,
+        });
 
-      setEditingImovel({ ...editingImovel, analise_especialista: response.text });
+        return response.text;
+      } catch (error: any) {
+        const errorObj = typeof error === 'string' ? JSON.parse(error) : error;
+        if ((errorObj?.error?.code === 429 || errorObj?.status === 'RESOURCE_EXHAUSTED') && attempt < maxRetries) {
+          attempt++;
+          // Backoff muito mais agressivo: 10s, 30s, 90s, 270s, 810s
+          const delay = Math.pow(3, attempt) * 10000;
+          console.warn(`Cota esgotada. Tentativa ${attempt} de ${maxRetries}. Tentando novamente em ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return executeGeneration();
+        }
+        throw error;
+      }
+    };
+
+    try {
+      const analysis = await executeGeneration();
+      setEditingImovel({ ...editingImovel, analise_especialista: analysis });
     } catch (error: any) {
       console.error("Erro ao gerar análise:", error);
-      alert(`Erro ao gerar análise com IA: ${error?.message || 'Erro desconhecido'}`);
+      
+      let errorMessage = 'Erro ao gerar análise com IA. Tente novamente mais tarde.';
+      
+      try {
+        const errorObj = typeof error === 'string' ? JSON.parse(error) : error;
+        if (errorObj?.error?.code === 429 || errorObj?.status === 'RESOURCE_EXHAUSTED') {
+          errorMessage = 'A cota de uso da IA foi esgotada. Por favor, aguarde alguns minutos e tente novamente.';
+        } else if (error?.message) {
+          errorMessage = `Erro: ${error.message}`;
+        }
+      } catch (e) {
+        if (error?.message) errorMessage = `Erro: ${error.message}`;
+      }
+      
+      alert(errorMessage);
     } finally {
       setIsGeneratingAnalysis(false);
     }
@@ -617,7 +673,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
     if (!isAdmin) return;
     setIsProcessing(id);
     try {
-      const response = await fetch(`${window.location.origin}/api/update-property`, {
+      const response = await fetch('/api/update-property', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, url })
@@ -720,6 +776,8 @@ Retorne apenas o texto da análise formatado em Markdown.`;
   }, []);
 
   const navigate = (path: string) => {
+    console.log('Navigating to:', path, 'Current page:', currentPage);
+    if (currentPage === path) return;
     window.history.pushState({}, '', path);
     setCurrentPage(path);
     window.scrollTo(0, 0);

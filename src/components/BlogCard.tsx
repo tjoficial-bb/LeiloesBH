@@ -9,7 +9,10 @@ export function BlogCard({ post, onNavigate }: { post: BlogPost, onNavigate: (pa
   return (
     <div 
       className="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden flex flex-col hover:shadow-md transition-all group cursor-pointer"
-      onClick={() => onNavigate(`/blog/${post.slug}`)}
+      onClick={(e) => {
+        e.stopPropagation();
+        onNavigate(`/blog/${post.slug}`);
+      }}
     >
       <div className="relative h-48 overflow-hidden">
         <img 
