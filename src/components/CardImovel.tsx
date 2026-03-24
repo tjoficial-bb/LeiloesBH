@@ -1,6 +1,6 @@
 import { memo, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Calculator, X, Info, Phone, Quote, ShieldCheck, AlertCircle, Heart, Map, TrendingUp } from 'lucide-react';
+import { Calculator, X, Info, Phone, Quote, ShieldCheck, AlertCircle, Heart, Map, TrendingUp, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 
@@ -8,12 +8,18 @@ export const CardImovel = memo(({
   imovel, 
   showRoi = true, 
   isFavorite = false, 
-  onToggleFavorite 
+  onToggleFavorite,
+  settings,
+  isAdmin = false,
+  onManualFix
 }: { 
   imovel: any, 
   showRoi?: boolean, 
   isFavorite?: boolean, 
-  onToggleFavorite?: () => void 
+  onToggleFavorite?: () => void,
+  settings?: any,
+  isAdmin?: boolean,
+  onManualFix?: (field: 'primeira' | 'segunda') => void
 }) => {
   const [showCalc, setShowCalc] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
@@ -128,38 +134,44 @@ export const CardImovel = memo(({
     const avaliacao = parseCurrency(imovel.valor_avaliacao);
     const lance = parseCurrency(imovel.preco_leilao);
     const descontoPercent = avaliacao > 0 ? ((avaliacao - lance) / avaliacao * 100) : 0;
-    
-    let score = 0;
-    
-    // ROI (40% weight)
-    if (roi > 100) score += 40;
-    else if (roi > 70) score += 35;
-    else if (roi > 50) score += 30;
-    else if (roi > 30) score += 20;
-    else if (roi > 15) score += 10;
-    
-    // Desconto (30% weight)
-    if (descontoPercent > 60) score += 30;
-    else if (descontoPercent > 50) score += 25;
-    else if (descontoPercent > 40) score += 20;
-    else if (descontoPercent > 30) score += 15;
-    else if (descontoPercent > 20) score += 10;
-    
-    // Tipo de Imóvel (15% weight)
     const tipo = String(imovel.tipo || '').toLowerCase();
-    if (tipo.includes('apartamento') || tipo.includes('casa')) score += 15;
-    else if (tipo.includes('comercial') || tipo.includes('sala')) score += 10;
-    else if (tipo.includes('terreno') || tipo.includes('lote')) score += 5;
-    else score += 10; // Default
 
-    // Risco (15% weight)
+    // Pesos do Admin ou Padrão
+    const wRoi = settings?.scoreWeightRoi ?? 40;
+    const wDiscount = settings?.scoreWeightDiscount ?? 30;
+    const wLiquidity = settings?.scoreWeightLiquidity ?? 15;
+    const wRisk = settings?.scoreWeightRisk ?? 15;
+
+    let score = 0;
+
+    // ROI (Weight based on settings)
+    if (roi > 100) score += wRoi;
+    else if (roi > 70) score += (wRoi * 0.875);
+    else if (roi > 50) score += (wRoi * 0.75);
+    else if (roi > 30) score += (wRoi * 0.5);
+    else if (roi > 15) score += (wRoi * 0.25);
+
+    // Desconto (Weight based on settings)
+    if (descontoPercent > 60) score += wDiscount;
+    else if (descontoPercent > 50) score += (wDiscount * 0.83);
+    else if (descontoPercent > 40) score += (wDiscount * 0.66);
+    else if (descontoPercent > 30) score += (wDiscount * 0.5);
+    else if (descontoPercent > 20) score += (wDiscount * 0.33);
+
+    // Liquidez (Weight based on settings)
+    if (tipo.includes('apartamento') || tipo.includes('casa')) score += wLiquidity;
+    else if (tipo.includes('comercial') || tipo.includes('sala')) score += (wLiquidity * 0.66);
+    else if (tipo.includes('terreno') || tipo.includes('lote')) score += (wLiquidity * 0.33);
+    else score += (wLiquidity * 0.66); // Default
+
+    // Risco (Weight based on settings)
     const risco = String(imovel.risco || 'médio').toLowerCase();
-    if (risco === 'baixo') score += 15;
-    else if (risco === 'médio') score += 10;
-    else if (risco === 'alto') score += 5;
+    if (risco === 'baixo') score += wRisk;
+    else if (risco === 'médio') score += (wRisk * 0.66);
+    else if (risco === 'alto') score += (wRisk * 0.33);
 
     return Math.round(score / 10);
-  }, [roiOriginal, imovel.valor_avaliacao, imovel.preco_leilao, imovel.tipo, imovel.risco]);
+  }, [roiOriginal, imovel.valor_avaliacao, imovel.preco_leilao, imovel.tipo, imovel.risco, settings]);
 
   const scoreBreakdown = useMemo(() => {
     const roi = parseFloat(roiOriginal);
@@ -169,30 +181,36 @@ export const CardImovel = memo(({
     const tipo = String(imovel.tipo || '').toLowerCase();
     const risco = String(imovel.risco || 'médio').toLowerCase();
 
+    // Pesos do Admin ou Padrão
+    const wRoi = settings?.scoreWeightRoi ?? 40;
+    const wDiscount = settings?.scoreWeightDiscount ?? 30;
+    const wLiquidity = settings?.scoreWeightLiquidity ?? 15;
+    const wRisk = settings?.scoreWeightRisk ?? 15;
+
     let roiScore = 0;
-    if (roi > 100) roiScore = 40;
-    else if (roi > 70) roiScore = 35;
-    else if (roi > 50) roiScore = 30;
-    else if (roi > 30) roiScore = 20;
-    else if (roi > 15) roiScore = 10;
+    if (roi > 100) roiScore = wRoi;
+    else if (roi > 70) roiScore = Math.round(wRoi * 0.875);
+    else if (roi > 50) roiScore = Math.round(wRoi * 0.75);
+    else if (roi > 30) roiScore = Math.round(wRoi * 0.5);
+    else if (roi > 15) roiScore = Math.round(wRoi * 0.25);
 
     let descScore = 0;
-    if (descontoPercent > 60) descScore = 30;
-    else if (descontoPercent > 50) descScore = 25;
-    else if (descontoPercent > 40) descScore = 20;
-    else if (descontoPercent > 30) descScore = 15;
-    else if (descontoPercent > 20) descScore = 10;
+    if (descontoPercent > 60) descScore = wDiscount;
+    else if (descontoPercent > 50) descScore = Math.round(wDiscount * 0.83);
+    else if (descontoPercent > 40) descScore = Math.round(wDiscount * 0.66);
+    else if (descontoPercent > 30) descScore = Math.round(wDiscount * 0.5);
+    else if (descontoPercent > 20) descScore = Math.round(wDiscount * 0.33);
 
     let tipoScore = 0;
-    if (tipo.includes('apartamento') || tipo.includes('casa')) tipoScore = 15;
-    else if (tipo.includes('comercial') || tipo.includes('sala')) tipoScore = 10;
-    else if (tipo.includes('terreno') || tipo.includes('lote')) tipoScore = 5;
-    else tipoScore = 10;
+    if (tipo.includes('apartamento') || tipo.includes('casa')) tipoScore = wLiquidity;
+    else if (tipo.includes('comercial') || tipo.includes('sala')) tipoScore = Math.round(wLiquidity * 0.66);
+    else if (tipo.includes('terreno') || tipo.includes('lote')) tipoScore = Math.round(wLiquidity * 0.33);
+    else tipoScore = Math.round(wLiquidity * 0.66);
 
     let riscoScore = 0;
-    if (risco === 'baixo') riscoScore = 15;
-    else if (risco === 'médio') riscoScore = 10;
-    else if (risco === 'alto') riscoScore = 5;
+    if (risco === 'baixo') riscoScore = wRisk;
+    else if (risco === 'médio') riscoScore = Math.round(wRisk * 0.66);
+    else if (risco === 'alto') riscoScore = Math.round(wRisk * 0.33);
 
     const totalScore = roiScore + descScore + tipoScore + riscoScore;
     const summary = totalScore >= 80 ? "Excelente oportunidade com alta margem e baixo risco." :
@@ -201,13 +219,13 @@ export const CardImovel = memo(({
                     "Oportunidade de alto risco ou baixa rentabilidade.";
 
     return {
-      roi: { val: roi.toFixed(1) + '%', score: roiScore, max: 40 },
-      desconto: { val: descontoPercent.toFixed(1) + '%', score: descScore, max: 30 },
-      tipo: { val: imovel.tipo || 'N/A', score: tipoScore, max: 15 },
-      risco: { val: imovel.risco || 'Médio', score: riscoScore, max: 15 },
+      roi: { val: roi.toFixed(1) + '%', score: roiScore, max: wRoi },
+      desconto: { val: descontoPercent.toFixed(1) + '%', score: descScore, max: wDiscount },
+      tipo: { val: imovel.tipo || 'N/A', score: tipoScore, max: wLiquidity },
+      risco: { val: imovel.risco || 'Médio', score: riscoScore, max: wRisk },
       summary
     };
-  }, [roiOriginal, imovel.valor_avaliacao, imovel.preco_leilao, imovel.tipo, imovel.risco]);
+  }, [roiOriginal, imovel.valor_avaliacao, imovel.preco_leilao, imovel.tipo, imovel.risco, settings]);
 
   const whatsappMessage = `Olá! Tenho interesse no imóvel: ${imovel.titulo}. 
 📍 Localização: ${imovel.endereco}
@@ -257,37 +275,37 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
           </div>
 
           {/* Tooltip Breakdown */}
-          <div className="absolute bottom-full right-0 mb-3 w-64 bg-white rounded-2xl shadow-2xl border border-stone-100 p-5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 transform translate-y-2 group-hover:translate-y-0">
+          <div className="absolute bottom-full right-0 mb-3 w-80 bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 transform translate-y-2 group-hover:translate-y-0">
             {/* Arrow */}
-            <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-white border-r border-b border-stone-100 transform rotate-45"></div>
+            <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-white border-r border-b border-stone-200 transform rotate-45"></div>
 
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-stone-50">
-              <div className="flex items-center gap-2">
-                <ShieldCheck size={14} className="text-emerald-600" />
-                <h4 className="text-[10px] font-black text-stone-400 uppercase tracking-[0.15em]">Análise TJ Invest</h4>
+            <div className="flex items-center justify-between mb-5 pb-4 border-b border-stone-100">
+              <div className="flex items-center gap-2.5">
+                <ShieldCheck size={18} className="text-emerald-600" />
+                <h4 className="text-xs font-black text-stone-500 uppercase tracking-[0.15em]">Análise TJ Invest</h4>
               </div>
-              <span className={`text-xs font-black px-2 py-0.5 rounded-md ${opportunityScore >= 8 ? 'bg-emerald-50 text-emerald-700' : opportunityScore >= 6 ? 'bg-amber-50 text-amber-700' : 'bg-stone-50 text-stone-700'}`}>
+              <span className={`text-sm font-black px-3 py-1 rounded-lg ${opportunityScore >= 8 ? 'bg-emerald-50 text-emerald-700' : opportunityScore >= 6 ? 'bg-amber-50 text-amber-700' : 'bg-stone-50 text-stone-700'}`}>
                 {opportunityScore}/10
               </span>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-5">
               {[
                 { label: 'Rentabilidade (ROI)', val: scoreBreakdown.roi.val, score: scoreBreakdown.roi.score, max: scoreBreakdown.roi.max },
                 { label: 'Margem de Desconto', val: scoreBreakdown.desconto.val, score: scoreBreakdown.desconto.score, max: scoreBreakdown.desconto.max },
                 { label: 'Liquidez (Tipo)', val: scoreBreakdown.tipo.val, score: scoreBreakdown.tipo.score, max: scoreBreakdown.tipo.max },
                 { label: 'Segurança (Risco)', val: scoreBreakdown.risco.val, score: scoreBreakdown.risco.score, max: scoreBreakdown.risco.max }
               ].map((item, idx) => (
-                <div key={idx} className="flex justify-between items-start group/item">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] font-bold text-stone-800 leading-none">{item.label}</span>
-                    <span className="text-[9px] text-stone-400 font-medium">{item.val}</span>
+                <div key={idx} className="flex justify-between items-center group/item">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[13px] font-bold text-stone-800 leading-none">{item.label}</span>
+                    <span className="text-[11px] text-stone-500 font-medium">{item.val}</span>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-[11px] font-black text-stone-900">{item.score}<span className="text-stone-300 font-medium">/{item.max}</span></span>
-                    <div className="w-12 h-1 bg-stone-50 rounded-full overflow-hidden">
+                  <div className="flex flex-col items-end gap-1.5">
+                    <span className="text-xs font-black text-stone-900">{item.score}<span className="text-stone-300 font-medium">/{item.max}</span></span>
+                    <div className="w-20 h-1.5 bg-stone-100 rounded-full overflow-hidden">
                       <div 
-                        className={`h-full rounded-full transition-all duration-500 ${item.score / item.max >= 0.8 ? 'bg-emerald-500' : item.score / item.max >= 0.5 ? 'bg-amber-400' : 'bg-stone-300'}`}
+                        className={`h-full rounded-full transition-all duration-500 ${item.score / item.max >= 0.8 ? 'bg-emerald-500' : item.score / item.max >= 0.5 ? 'bg-amber-400' : 'bg-stone-400'}`}
                         style={{ width: `${(item.score / item.max) * 100}%` }}
                       />
                     </div>
@@ -296,9 +314,9 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
               ))}
             </div>
 
-            <div className="mt-5 pt-4 border-t border-stone-100">
-              <div className="bg-stone-50/50 rounded-xl p-3 border border-stone-100/50">
-                <p className="text-[10px] text-stone-600 leading-relaxed font-medium italic text-center">
+            <div className="mt-6 pt-5 border-t border-stone-100">
+              <div className="bg-stone-50 rounded-xl p-4 border border-stone-100">
+                <p className="text-xs text-stone-700 leading-relaxed font-semibold italic text-center">
                   "{scoreBreakdown.summary}"
                 </p>
               </div>
@@ -348,12 +366,34 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
         
         <div className="grid grid-cols-3 gap-2 bg-stone-50 p-3 rounded-xl mb-4 relative">
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">{imovel.titulo_avaliacao || 'Avaliação'}</p>
-            <p className="text-xs font-bold text-stone-700 truncate" title={imovel.valor_avaliacao}>{imovel.valor_avaliacao || 'N/A'}</p>
+            <div className="flex items-center gap-1">
+              <p className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">1ª Praça (Aval.)</p>
+              {isAdmin && onManualFix && (
+                <button 
+                  onClick={() => onManualFix('primeira')}
+                  className="p-0.5 rounded text-stone-300 hover:text-primary transition-colors"
+                  title="Puxar do Preço de Avaliação"
+                >
+                  <RefreshCw size={10} />
+                </button>
+              )}
+            </div>
+            <p className="text-xs font-bold text-stone-700 truncate" title={imovel.primeira_praca_valor || imovel.valor_avaliacao}>{imovel.primeira_praca_valor || imovel.valor_avaliacao || 'N/A'}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">{imovel.titulo_lance_minimo || 'Lance Mín.'}</p>
-            <p className="text-xs font-bold text-primary-dark truncate" title={imovel.preco_leilao}>{imovel.preco_leilao || 'N/A'}</p>
+            <div className="flex items-center gap-1">
+              <p className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">2ª Praça (Lance)</p>
+              {isAdmin && onManualFix && (
+                <button 
+                  onClick={() => onManualFix('segunda')}
+                  className="p-0.5 rounded text-stone-300 hover:text-primary transition-colors"
+                  title="Puxar do Preço de Lance Mínimo"
+                >
+                  <RefreshCw size={10} />
+                </button>
+              )}
+            </div>
+            <p className="text-xs font-bold text-primary-dark truncate" title={imovel.segunda_praca_valor || imovel.preco_leilao}>{imovel.segunda_praca_valor || imovel.preco_leilao || 'N/A'}</p>
           </div>
           <div className="relative">
             <p className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">{imovel.titulo_roi || 'ROI Est.'}</p>

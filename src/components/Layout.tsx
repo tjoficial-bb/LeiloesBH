@@ -120,6 +120,7 @@ export function Layout({ children, user, onLogin, onLogout, onNavigate, settings
             <nav className="hidden md:flex gap-8 items-center font-medium" style={{ color: 'inherit' }}>
             <button onClick={() => handleNavigate('/')} className="hover:text-primary transition">Início</button>
             <button onClick={() => handleNavigate('/')} className="hover:text-primary transition">Leilões</button>
+            <button onClick={() => handleNavigate('/leiloeiros')} className="hover:text-primary transition">Leiloeiros</button>
             <button onClick={() => handleNavigate('/blog')} className="hover:text-primary transition">Blog</button>
             <button onClick={() => handleNavigate('/sobre')} className="hover:text-primary transition">Sobre</button>
             <a href={`https://wa.me/${(settings.phone || '5531973590970').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition">Contato</a>
@@ -158,6 +159,7 @@ export function Layout({ children, user, onLogin, onLogout, onNavigate, settings
           >
             <button onClick={() => handleNavigate('/')} className="text-left py-2 hover:text-primary transition">Início</button>
             <button onClick={() => handleNavigate('/')} className="text-left py-2 hover:text-primary transition">Leilões</button>
+            <button onClick={() => handleNavigate('/leiloeiros')} className="text-left py-2 hover:text-primary transition">Leiloeiros</button>
             <button onClick={() => handleNavigate('/blog')} className="text-left py-2 hover:text-primary transition">Blog</button>
             <button onClick={() => handleNavigate('/sobre')} className="text-left py-2 hover:text-primary transition">Sobre</button>
             <a href={`https://wa.me/${(settings.phone || '5531973590970').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-left py-2 hover:text-primary transition block">Contato</a>
@@ -262,6 +264,12 @@ export function Layout({ children, user, onLogin, onLogout, onNavigate, settings
                   <button onClick={() => onNavigate('/')} className="flex items-center gap-2 text-sm hover:text-primary-light transition-colors group">
                     <ChevronRight size={14} className="text-stone-600 group-hover:text-primary-light transition-colors" />
                     Leilões em Destaque
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => onNavigate('/leiloeiros')} className="flex items-center gap-2 text-sm hover:text-primary-light transition-colors group">
+                    <ChevronRight size={14} className="text-stone-600 group-hover:text-primary-light transition-colors" />
+                    Leiloeiros Confiáveis
                   </button>
                 </li>
                 <li>

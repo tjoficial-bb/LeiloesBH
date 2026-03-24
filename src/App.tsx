@@ -12,6 +12,7 @@ import { Heart } from 'lucide-react';
 import Sobre from './Sobre';
 import FAQ from './FAQ';
 import AdminSettings from './AdminSettings';
+import Leiloeiros from './pages/Leiloeiros';
 import BlogList from './BlogList';
 import BlogPost from './BlogPost';
 import AdminBlog from './AdminBlog';
@@ -77,7 +78,7 @@ export default function App() {
   const [editingImovel, setEditingImovel] = useState<any>(null);
   const [user, setUser] = useState<User | null>(null);
   
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState<string | boolean>(false);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [settings, setSettings] = useState<any>({
     siteTitle: 'TJ INVEST - Leilões de Imóveis',
@@ -428,7 +429,7 @@ export default function App() {
       console.log('Acesso negado. Usuário não é admin.');
       return;
     }
-    setIsProcessing(true);
+    setIsProcessing('new');
     try {
       console.log('Iniciando fetch para:', `${window.location.origin}/api/scrape`);
       const response = await fetch(`${window.location.origin}/api/scrape`, {
@@ -443,10 +444,12 @@ export default function App() {
         const imovelData = result.data.data || result.data;
         console.log('Adding to Firestore:', imovelData);
         await addDoc(collection(db, 'imoveis'), {
-          ...imovelData
+          ...imovelData,
+          addedAt: new Date().toISOString()
         });
         console.log('Successfully added to Firestore');
         setUrl(''); // Clear input
+        alert('Imóvel adicionado com sucesso!');
       } else if (result.loginRequired) {
         alert('Login necessário! Clique no link abaixo para logar.');
         window.open(result.loginUrl, '_blank');
@@ -462,7 +465,7 @@ export default function App() {
 
   const handleAddFromDiscovery = async (discoveryUrl: string) => {
     if (!(user?.email === ADMIN_EMAIL)) return;
-    setIsProcessing(true);
+    setIsProcessing('discovery');
     try {
       const response = await fetch(`${window.location.origin}/api/scrape`, {
         method: 'POST',
@@ -565,9 +568,32 @@ Retorne apenas o texto da análise formatado em Markdown.`;
     }
   };
 
+  const handleManualFix = async (imovelId: string, field: 'primeira' | 'segunda') => {
+    try {
+      const imovel = imoveis.find(i => i.id === imovelId);
+      if (!imovel) return;
+
+      const newValue = field === 'primeira' ? imovel.valor_avaliacao : imovel.preco_leilao;
+      if (!newValue) {
+        alert('Valor de origem não disponível');
+        return;
+      }
+
+      const imovelRef = doc(db, 'imoveis', imovelId);
+      const updateData = field === 'primeira' 
+        ? { primeira_praca_valor: newValue }
+        : { segunda_praca_valor: newValue };
+
+      await updateDoc(imovelRef, updateData);
+    } catch (error) {
+      console.error('Erro ao fixar valor manualmente:', error);
+      handleFirestoreError(error, OperationType.UPDATE, `imoveis/${imovelId}`);
+    }
+  };
+
   const handleManualUpdate = async (id: string, url: string) => {
     if (!isAdmin) return;
-    setIsProcessing(true);
+    setIsProcessing(id);
     try {
       const response = await fetch(`${window.location.origin}/api/update-property`, {
         method: 'POST',
@@ -582,6 +608,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
       }
     } catch (error) {
       console.error('Erro na atualização manual:', error);
+      alert('Erro na atualização manual.');
     } finally {
       setIsProcessing(false);
     }
@@ -704,10 +731,10 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                 />
                 <button 
                   onClick={handleScrape} 
-                  disabled={isProcessing}
+                  disabled={!!isProcessing}
                   className={`bg-blue-600 text-white px-6 py-2 rounded font-semibold whitespace-nowrap ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  {isProcessing ? 'Processando...' : 'Fazer Scrape'}
+                  {isProcessing === 'new' ? 'Processando...' : 'Fazer Scrape'}
                 </button>
               </div>
             </div>
@@ -775,16 +802,19 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                     showRoi={settings.showRoiCalculator !== false} 
                     isFavorite={favorites.includes(imovel.id)}
                     onToggleFavorite={() => handleToggleFavorite(imovel.id)}
+                    settings={settings}
+                    isAdmin={isAdmin}
+                    onManualFix={(field) => handleManualFix(imovel.id, field)}
                   />
                   {isAdmin && (
                     <div className="mt-2 flex gap-3 text-sm">
                       <button onClick={() => setEditingImovel(imovel)} className="text-blue-600 font-medium hover:underline">Editar</button>
                       <button 
                         onClick={() => handleManualUpdate(imovel.id, imovel.link_original)} 
-                        disabled={isProcessing}
-                        className={`text-primary font-medium hover:underline ${isProcessing ? 'opacity-50' : ''}`}
+                        disabled={isProcessing === imovel.id}
+                        className={`text-primary font-medium hover:underline ${isProcessing === imovel.id ? 'opacity-50' : ''}`}
                       >
-                        {isProcessing ? '...' : 'Atualizar'}
+                        {isProcessing === imovel.id ? 'Atualizando...' : 'Atualizar'}
                       </button>
                       <button onClick={() => handleDelete(imovel.id)} className="text-red-600 font-medium hover:underline">Excluir</button>
                     </div>
@@ -1003,6 +1033,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
           <DiscoveryDashboard onAddProperty={handleAddFromDiscovery} />
         </div>
       )}
+      {currentPage === '/leiloeiros' && <Leiloeiros />}
       
       {editingImovel && createPortal(
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[9999]">

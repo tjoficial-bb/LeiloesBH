@@ -103,6 +103,10 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
     headerBackgroundImage: '',
     headerOverlayOpacity: 0.5,
     showFaqs: true,
+    scoreWeightRoi: 40,
+    scoreWeightDiscount: 30,
+    scoreWeightLiquidity: 15,
+    scoreWeightRisk: 15,
   });
   const [faqs, setFaqs] = useState<any[]>([]);
   const [newFaq, setNewFaq] = useState({ question: '', answer: '' });
@@ -116,6 +120,9 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
   const [isGeneratingKeywords, setIsGeneratingKeywords] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
+  const [leiloeiros, setLeiloeiros] = useState<any[]>([]);
+  const [newLeiloeiro, setNewLeiloeiro] = useState({ nome: '', url: '' });
+  const [editingLeiloeiro, setEditingLeiloeiro] = useState<any>(null);
   const [headerPrompt, setHeaderPrompt] = useState('Escritório de luxo moderno, tons de esmeralda e dourado, minimalista, profissional, mercado imobiliário');
 
   const compressImage = (base64Str: string, maxWidth = 1200, maxHeight = 675, quality = 0.7): Promise<string> => {
@@ -289,11 +296,15 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
     const unsubTestimonials = onSnapshot(collection(db, 'testimonials'), (snapshot) => {
       setTestimonials(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
+    const unsubLeiloeiros = onSnapshot(collection(db, 'leiloeiros'), (snapshot) => {
+      setLeiloeiros(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
     return () => {
       unsubSite();
       unsubHeader();
       unsubFaqs();
       unsubTestimonials();
+      unsubLeiloeiros();
     };
   }, []);
 
@@ -405,6 +416,48 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
     }
   };
 
+  const addLeiloeiro = async () => {
+    if (!newLeiloeiro.nome || !newLeiloeiro.url) return;
+    try {
+      await addDoc(collection(db, 'leiloeiros'), newLeiloeiro);
+      setNewLeiloeiro({ nome: '', url: '' });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'leiloeiros');
+    }
+  };
+
+  const deleteLeiloeiro = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'leiloeiros', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'leiloeiros/' + id);
+    }
+  };
+
+  const saveLeiloeiro = async (id: string, nome: string, url: string) => {
+    try {
+      await updateDoc(doc(db, 'leiloeiros', id), { nome, url });
+      setEditingLeiloeiro(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'leiloeiros/' + id);
+    }
+  };
+
+  const importLeiloeiros = async () => {
+    const { LEILOEIROS_CONFIAVEIS } = await import('./constants/leiloeiros');
+    try {
+      const batch = writeBatch(db);
+      LEILOEIROS_CONFIAVEIS.forEach((l) => {
+        const newDocRef = doc(collection(db, 'leiloeiros'));
+        batch.set(newDocRef, l);
+      });
+      await batch.commit();
+      alert('Leiloeiros importados com sucesso!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'leiloeiros/import');
+    }
+  };
+
   return (
       <div className="max-w-4xl mx-auto py-12">
         <div className="flex justify-between items-center mb-8">
@@ -443,6 +496,18 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
             className={`px-4 py-2 rounded-lg font-bold whitespace-nowrap transition-colors ${activeTab === 'faqs' ? 'bg-primary text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
           >
             Perguntas Frequentes
+          </button>
+          <button 
+            onClick={() => setActiveTab('score')}
+            className={`px-4 py-2 rounded-lg font-bold whitespace-nowrap transition-colors ${activeTab === 'score' ? 'bg-primary text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+          >
+            Configurar Score
+          </button>
+          <button 
+            onClick={() => setActiveTab('leiloeiros')}
+            className={`px-4 py-2 rounded-lg font-bold whitespace-nowrap transition-colors ${activeTab === 'leiloeiros' ? 'bg-primary text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+          >
+            Leiloeiros
           </button>
         </div>
         
@@ -1200,6 +1265,270 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
             ))}
           </div>
         </div>
+        )}
+
+        {activeTab === 'score' && (
+          <div className="space-y-8">
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-stone-100">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Zap className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Pesos do Score de Oportunidade</h2>
+                  <p className="text-stone-500 text-sm">Ajuste a importância de cada fator no cálculo do score final (0-100).</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-bold text-stone-700 mb-2">Peso: Rentabilidade (ROI)</label>
+                    <div className="flex items-center gap-4">
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="100" 
+                        value={settings.scoreWeightRoi} 
+                        onChange={(e) => setSettings({...settings, scoreWeightRoi: parseInt(e.target.value)})}
+                        className="flex-1 accent-primary"
+                      />
+                      <span className="font-bold text-primary w-12">{settings.scoreWeightRoi}%</span>
+                    </div>
+                    <p className="text-xs text-stone-400 mt-1 italic">Impacto do retorno estimado sobre o investimento.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-stone-700 mb-2">Peso: Margem de Desconto</label>
+                    <div className="flex items-center gap-4">
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="100" 
+                        value={settings.scoreWeightDiscount} 
+                        onChange={(e) => setSettings({...settings, scoreWeightDiscount: parseInt(e.target.value)})}
+                        className="flex-1 accent-primary"
+                      />
+                      <span className="font-bold text-primary w-12">{settings.scoreWeightDiscount}%</span>
+                    </div>
+                    <p className="text-xs text-stone-400 mt-1 italic">Impacto da diferença entre avaliação e preço mínimo.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-stone-700 mb-2">Peso: Liquidez (Tipo de Imóvel)</label>
+                    <div className="flex items-center gap-4">
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="100" 
+                        value={settings.scoreWeightLiquidity} 
+                        onChange={(e) => setSettings({...settings, scoreWeightLiquidity: parseInt(e.target.value)})}
+                        className="flex-1 accent-primary"
+                      />
+                      <span className="font-bold text-primary w-12">{settings.scoreWeightLiquidity}%</span>
+                    </div>
+                    <p className="text-xs text-stone-400 mt-1 italic">Impacto da facilidade de revenda baseada no tipo.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-stone-700 mb-2">Peso: Segurança (Risco)</label>
+                    <div className="flex items-center gap-4">
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="100" 
+                        value={settings.scoreWeightRisk} 
+                        onChange={(e) => setSettings({...settings, scoreWeightRisk: parseInt(e.target.value)})}
+                        className="flex-1 accent-primary"
+                      />
+                      <span className="font-bold text-primary w-12">{settings.scoreWeightRisk}%</span>
+                    </div>
+                    <p className="text-xs text-stone-400 mt-1 italic">Impacto da complexidade jurídica e ocupação.</p>
+                  </div>
+
+                  <div className="pt-4 border-t border-stone-100">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-stone-600">Total dos Pesos:</span>
+                      <span className={`text-lg font-bold ${(settings.scoreWeightRoi + settings.scoreWeightDiscount + settings.scoreWeightLiquidity + settings.scoreWeightRisk) === 100 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {settings.scoreWeightRoi + settings.scoreWeightDiscount + settings.scoreWeightLiquidity + settings.scoreWeightRisk}%
+                      </span>
+                    </div>
+                    {(settings.scoreWeightRoi + settings.scoreWeightDiscount + settings.scoreWeightLiquidity + settings.scoreWeightRisk) !== 100 && (
+                      <p className="text-xs text-red-500 mt-1">A soma dos pesos deve ser exatamente 100% para um cálculo preciso.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-stone-50 p-6 rounded-xl border border-stone-200">
+                  <h3 className="font-bold text-stone-800 mb-4 flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-primary" />
+                    O que é o Score de Oportunidade?
+                  </h3>
+                  <div className="space-y-4 text-sm text-stone-600 leading-relaxed">
+                    <p>
+                      O <strong>Score de Oportunidade</strong> é uma métrica exclusiva da TJ Invest que avalia o potencial de lucro e o nível de risco de cada imóvel.
+                    </p>
+                    <ul className="space-y-2">
+                      <li><strong>1. Rentabilidade (ROI):</strong> Avalia o retorno estimado. Scores altos indicam lucro rápido e expressivo.</li>
+                      <li><strong>2. Margem de Desconto:</strong> Quanto maior o desconto em relação ao valor de mercado, maior a pontuação.</li>
+                      <li><strong>3. Liquidez:</strong> Apartamentos e casas em áreas urbanas pontuam mais que terrenos ou áreas rurais.</li>
+                      <li><strong>4. Segurança (Risco):</strong> Leilões extrajudiciais e imóveis desocupados recebem pontuações de segurança maiores.</li>
+                    </ul>
+                    <div className="p-3 bg-white rounded-lg border border-stone-200 mt-4 italic text-xs">
+                      "Este score ajuda o investidor a filtrar rapidamente as melhores oportunidades do mercado, equilibrando ganho financeiro com segurança jurídica."
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 flex justify-end">
+                <button 
+                  onClick={saveSettings}
+                  disabled={isSaving || (settings.scoreWeightRoi + settings.scoreWeightDiscount + settings.scoreWeightLiquidity + settings.scoreWeightRisk) !== 100}
+                  className="bg-primary text-white px-8 py-3 rounded-xl font-bold hover:bg-primary/90 transition-all flex items-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50"
+                >
+                  {isSaving ? 'Salvando...' : 'Salvar Configurações do Score'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'leiloeiros' && (
+          <div className="bg-white rounded-3xl shadow-xl border border-stone-100 overflow-hidden">
+            <div className="p-8 border-b border-stone-100 bg-stone-50/50">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-2xl font-black text-stone-800 flex items-center gap-2">
+                    <Shield className="h-6 w-6 text-primary" />
+                    Leiloeiros Confiáveis
+                  </h2>
+                  <p className="text-stone-500 mt-1">Gerencie a lista de leiloeiros e ferramentas recomendadas.</p>
+                </div>
+                <button 
+                  onClick={importLeiloeiros}
+                  className="bg-stone-800 text-white px-4 py-2 rounded-xl font-bold hover:bg-stone-700 transition-all flex items-center gap-2 text-sm"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Importar Lista Padrão
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-8 space-y-8">
+              <div className="bg-stone-50 p-6 rounded-2xl border border-stone-200">
+                <h3 className="font-bold text-stone-800 mb-4">Adicionar Novo Leiloeiro</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input 
+                    type="text" 
+                    placeholder="Nome do Leiloeiro" 
+                    value={newLeiloeiro.nome}
+                    onChange={(e) => setNewLeiloeiro({...newLeiloeiro, nome: e.target.value})}
+                    className="bg-white border border-stone-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                  />
+                  <input 
+                    type="url" 
+                    placeholder="URL (ex: https://...)" 
+                    value={newLeiloeiro.url}
+                    onChange={(e) => setNewLeiloeiro({...newLeiloeiro, url: e.target.value})}
+                    className="bg-white border border-stone-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                  />
+                </div>
+                <button 
+                  onClick={addLeiloeiro}
+                  className="mt-4 w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus className="h-5 w-5" />
+                  Adicionar Leiloeiro
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-bold text-stone-800 flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  Lista de Leiloeiros ({leiloeiros.length})
+                </h3>
+                
+                <div className="grid grid-cols-1 gap-3">
+                  {leiloeiros.sort((a, b) => a.nome.localeCompare(b.nome)).map((leiloeiro) => (
+                    <div key={leiloeiro.id} className="bg-white border border-stone-100 p-4 rounded-xl shadow-sm hover:shadow-md transition-all group">
+                      {editingLeiloeiro?.id === leiloeiro.id ? (
+                        <div className="space-y-3">
+                          <input 
+                            type="text" 
+                            value={editingLeiloeiro.nome}
+                            onChange={(e) => setEditingLeiloeiro({...editingLeiloeiro, nome: e.target.value})}
+                            className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-primary"
+                          />
+                          <input 
+                            type="url" 
+                            value={editingLeiloeiro.url}
+                            onChange={(e) => setEditingLeiloeiro({...editingLeiloeiro, url: e.target.value})}
+                            className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-primary"
+                          />
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => saveLeiloeiro(leiloeiro.id, editingLeiloeiro.nome, editingLeiloeiro.url)}
+                              className="bg-emerald-500 text-white p-2 rounded-lg hover:bg-emerald-600 transition-colors"
+                            >
+                              <Check className="h-4 w-4" />
+                            </button>
+                            <button 
+                              onClick={() => setEditingLeiloeiro(null)}
+                              className="bg-stone-200 text-stone-600 p-2 rounded-lg hover:bg-stone-300 transition-colors"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <h4 className="font-bold text-stone-800">{leiloeiro.nome}</h4>
+                            <a 
+                              href={leiloeiro.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:underline flex items-center gap-1 mt-1"
+                            >
+                              <Globe className="h-3 w-3" />
+                              {leiloeiro.url}
+                            </a>
+                          </div>
+                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => setEditingLeiloeiro(leiloeiro)}
+                              className="p-2 text-stone-400 hover:text-primary transition-colors"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button 
+                              onClick={() => deleteLeiloeiro(leiloeiro.id)}
+                              className="p-2 text-stone-400 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {leiloeiros.length === 0 && (
+                    <div className="text-center py-12 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+                      <Users className="h-12 w-12 text-stone-300 mx-auto mb-3" />
+                      <p className="text-stone-500">Nenhum leiloeiro cadastrado.</p>
+                      <button 
+                        onClick={importLeiloeiros}
+                        className="mt-4 text-primary font-bold hover:underline"
+                      >
+                        Importar lista padrão agora
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="flex justify-center pb-12 mt-8">
