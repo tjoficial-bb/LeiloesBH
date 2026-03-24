@@ -24,6 +24,9 @@ service cloud.firestore {
     // Collection: users/{userId}/favorites
     // Fields: imovelId, addedAt
     //
+    // Collection: leiloeiros_monitorados
+    // Fields: url, nome, added_at, last_sync
+    //
     // ===============================================================
 
     // ===============================================================
@@ -97,6 +100,12 @@ service cloud.firestore {
       return data.imovelId is string && data.addedAt is string && isValidDateString(data.addedAt);
     }
 
+    function isValidLeiloeiroMonitorado(data) {
+      return data.url is string && isValidUrl(data.url) &&
+             data.nome is string && data.nome.size() > 0 &&
+             data.added_at is string && isValidDateString(data.added_at);
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -142,6 +151,15 @@ service cloud.firestore {
     match /users/{userId}/favorites/{favoriteId} {
       allow read, delete: if isOwner(userId);
       allow create, update: if isOwner(userId) && isValidFavorite(request.resource.data);
+    }
+
+    match /leiloeiros_monitorados/{leiloeiroId} {
+      allow read: if isAdmin();
+      allow create, delete: if isAdmin() && isValidLeiloeiroMonitorado(request.resource.data);
+      allow update: if isAdmin() && (
+        isValidLeiloeiroMonitorado(request.resource.data) ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['last_sync'])
+      );
     }
 
     match /test/{testId} {

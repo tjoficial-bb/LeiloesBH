@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { getPostBySlug, BlogPost as BlogPostType, getRelatedPosts } from './services/blogService';
 import { Calendar, User, Clock, Share2, Facebook, Instagram, Linkedin, ArrowLeft, MessageCircle, List, ChevronRight, Award, ShieldCheck, CheckCircle2, HelpCircle, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
@@ -193,10 +194,13 @@ export default function BlogPost({ slug, onNavigate }: { slug: string, onNavigat
   return (
     <>
       {/* Reading Progress Bar */}
-      <motion.div 
-        className="fixed top-0 left-0 right-0 h-1 bg-primary z-[100] origin-left"
-        style={{ scaleX }}
-      />
+      {createPortal(
+        <motion.div 
+          className="fixed top-0 left-0 right-0 h-1 bg-primary z-[9999] origin-left"
+          style={{ scaleX }}
+        />,
+        document.body
+      )}
 
       <article className="max-w-6xl mx-auto py-12 px-4 md:px-8">
         {/* Breadcrumbs for SEO */}

@@ -1,6 +1,8 @@
 import { memo, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Calculator, X, Info, Phone, Quote, ShieldCheck, AlertCircle, Heart, Map, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import ReactMarkdown from 'react-markdown';
 
 export const CardImovel = memo(({ 
   imovel, 
@@ -16,7 +18,39 @@ export const CardImovel = memo(({
   const [showCalc, setShowCalc] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
   
-  const parseCurrency = (val: any) => parseFloat(String(val || '0').replace(/[^0-9,]/g, '').replace(',', '.') || '0');
+  const parseCurrency = (val: any) => {
+    const strVal = String(val || '0').trim();
+    // If it's already a clean number string like "1500000.00"
+    if (/^\\d+(\\.\\d+)?$/.test(strVal)) return parseFloat(strVal);
+    // Remove everything except numbers, commas and dots
+    const cleanStr = strVal.replace(/[^0-9,.]/g, '');
+    // If it has both dots and commas, assume the last one is the decimal separator
+    if (cleanStr.includes(',') && cleanStr.includes('.')) {
+      const lastComma = cleanStr.lastIndexOf(',');
+      const lastDot = cleanStr.lastIndexOf('.');
+      if (lastComma > lastDot) {
+        // format: 1.500.000,00
+        return parseFloat(cleanStr.replace(/\\./g, '').replace(',', '.'));
+      } else {
+        // format: 1,500,000.00
+        return parseFloat(cleanStr.replace(/,/g, ''));
+      }
+    }
+    // If it only has commas, assume it's a decimal separator (Brazilian format)
+    if (cleanStr.includes(',')) {
+      return parseFloat(cleanStr.replace(',', '.'));
+    }
+    // If it only has dots, check if it's a thousands separator or decimal
+    // If there's only one dot and exactly 2 digits after it, assume decimal
+    if (cleanStr.includes('.')) {
+      if (/\\.\\d{2}$/.test(cleanStr) && cleanStr.split('.').length === 2) {
+        return parseFloat(cleanStr);
+      }
+      // Otherwise assume thousands separator
+      return parseFloat(cleanStr.replace(/\\./g, ''));
+    }
+    return parseFloat(cleanStr || '0');
+  };
   const avaliacaoOriginal = parseCurrency(imovel.valor_avaliacao);
   const lanceMinimoOriginal = parseCurrency(imovel.preco_leilao);
 
@@ -26,6 +60,8 @@ export const CardImovel = memo(({
   const [valReforma, setValReforma] = useState(0);
   const [valItbi, setValItbi] = useState(lanceMinimoOriginal * 0.03); // ITBI (estimado 3%)
   const [valRegistro, setValRegistro] = useState(lanceMinimoOriginal * 0.01); // Registro (estimado 1%)
+  const [manualItbi, setManualItbi] = useState(false);
+  const [manualRegistro, setManualRegistro] = useState(false);
 
   const formatBRLInput = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -34,10 +70,19 @@ export const CardImovel = memo(({
     }).format(value);
   };
 
-  const handleBRLChange = (value: string, setter: (val: number) => void) => {
+  const handleBRLChange = (value: string, setter: (val: number) => void, type?: string) => {
     const digits = value.replace(/\D/g, '');
     const numberValue = parseInt(digits || '0', 10) / 100;
     setter(numberValue);
+
+    if (type === 'lance') {
+      if (!manualItbi) setValItbi(numberValue * 0.03);
+      if (!manualRegistro) setValRegistro(numberValue * 0.01);
+    } else if (type === 'itbi') {
+      setManualItbi(true);
+    } else if (type === 'registro') {
+      setManualRegistro(true);
+    }
   };
 
   const roiCalculado = useMemo(() => {
@@ -65,13 +110,82 @@ export const CardImovel = memo(({
 
   const opportunityScore = useMemo(() => {
     const roi = parseFloat(roiOriginal);
-    if (roi > 100) return 10;
-    if (roi > 80) return 9;
-    if (roi > 60) return 8;
-    if (roi > 40) return 7;
-    if (roi > 20) return 6;
-    return 5;
-  }, [roiOriginal]);
+    const avaliacao = parseCurrency(imovel.valor_avaliacao);
+    const lance = parseCurrency(imovel.preco_leilao);
+    const descontoPercent = avaliacao > 0 ? ((avaliacao - lance) / avaliacao * 100) : 0;
+    
+    let score = 0;
+    
+    // ROI (40% weight)
+    if (roi > 100) score += 40;
+    else if (roi > 70) score += 35;
+    else if (roi > 50) score += 30;
+    else if (roi > 30) score += 20;
+    else if (roi > 15) score += 10;
+    
+    // Desconto (30% weight)
+    if (descontoPercent > 60) score += 30;
+    else if (descontoPercent > 50) score += 25;
+    else if (descontoPercent > 40) score += 20;
+    else if (descontoPercent > 30) score += 15;
+    else if (descontoPercent > 20) score += 10;
+    
+    // Tipo de Imóvel (15% weight)
+    const tipo = String(imovel.tipo || '').toLowerCase();
+    if (tipo.includes('apartamento') || tipo.includes('casa')) score += 15;
+    else if (tipo.includes('comercial') || tipo.includes('sala')) score += 10;
+    else if (tipo.includes('terreno') || tipo.includes('lote')) score += 5;
+    else score += 10; // Default
+
+    // Risco (15% weight)
+    const risco = String(imovel.risco || 'médio').toLowerCase();
+    if (risco === 'baixo') score += 15;
+    else if (risco === 'médio') score += 10;
+    else if (risco === 'alto') score += 5;
+
+    return Math.round(score / 10);
+  }, [roiOriginal, imovel.valor_avaliacao, imovel.preco_leilao, imovel.tipo, imovel.risco]);
+
+  const scoreBreakdown = useMemo(() => {
+    const roi = parseFloat(roiOriginal);
+    const avaliacao = parseCurrency(imovel.valor_avaliacao);
+    const lance = parseCurrency(imovel.preco_leilao);
+    const descontoPercent = avaliacao > 0 ? ((avaliacao - lance) / avaliacao * 100) : 0;
+    const tipo = String(imovel.tipo || '').toLowerCase();
+    const risco = String(imovel.risco || 'médio').toLowerCase();
+
+    let roiScore = 0;
+    if (roi > 100) roiScore = 40;
+    else if (roi > 70) roiScore = 35;
+    else if (roi > 50) roiScore = 30;
+    else if (roi > 30) roiScore = 20;
+    else if (roi > 15) roiScore = 10;
+
+    let descScore = 0;
+    if (descontoPercent > 60) descScore = 30;
+    else if (descontoPercent > 50) descScore = 25;
+    else if (descontoPercent > 40) descScore = 20;
+    else if (descontoPercent > 30) descScore = 15;
+    else if (descontoPercent > 20) descScore = 10;
+
+    let tipoScore = 0;
+    if (tipo.includes('apartamento') || tipo.includes('casa')) tipoScore = 15;
+    else if (tipo.includes('comercial') || tipo.includes('sala')) tipoScore = 10;
+    else if (tipo.includes('terreno') || tipo.includes('lote')) tipoScore = 5;
+    else tipoScore = 10;
+
+    let riscoScore = 0;
+    if (risco === 'baixo') riscoScore = 15;
+    else if (risco === 'médio') riscoScore = 10;
+    else if (risco === 'alto') riscoScore = 5;
+
+    return {
+      roi: { val: roi.toFixed(1) + '%', score: roiScore, max: 40 },
+      desconto: { val: descontoPercent.toFixed(1) + '%', score: descScore, max: 30 },
+      tipo: { val: imovel.tipo || 'N/A', score: tipoScore, max: 15 },
+      risco: { val: imovel.risco || 'Médio', score: riscoScore, max: 15 }
+    };
+  }, [roiOriginal, imovel.valor_avaliacao, imovel.preco_leilao, imovel.tipo, imovel.risco]);
 
   const whatsappMessage = `Olá! Tenho interesse no imóvel: ${imovel.titulo}. 
 📍 Localização: ${imovel.endereco}
@@ -112,12 +226,61 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
           )}
         </div>
 
-        <div className="absolute bottom-3 right-3">
-          <div className="bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-sm border border-stone-100 flex items-center gap-2">
+        <div className="absolute bottom-3 right-3 group">
+          <div className="bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-sm border border-stone-100 flex items-center gap-2 cursor-help transition-all hover:bg-white hover:shadow-md">
             <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Score</span>
-            <span className={`text-sm font-black ${opportunityScore >= 8 ? 'text-primary' : 'text-amber-500'}`}>
+            <span className={`text-sm font-black ${opportunityScore >= 8 ? 'text-primary' : opportunityScore >= 6 ? 'text-amber-500' : 'text-stone-500'}`}>
               {opportunityScore}/10
             </span>
+          </div>
+
+          {/* Tooltip Breakdown */}
+          <div className="absolute bottom-full right-0 mb-2 w-56 bg-white rounded-2xl shadow-2xl border border-stone-100 p-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 transform translate-y-2 group-hover:translate-y-0">
+            <div className="flex items-center gap-2 mb-3 pb-2 border-bottom border-stone-50">
+              <ShieldCheck size={16} className="text-primary" />
+              <h4 className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Análise de Oportunidade</h4>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-bold text-stone-700">Rentabilidade (ROI)</span>
+                  <span className="text-[9px] text-stone-400">{scoreBreakdown.roi.val}</span>
+                </div>
+                <span className="text-xs font-black text-stone-900">{scoreBreakdown.roi.score}/{scoreBreakdown.roi.max}</span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-bold text-stone-700">Margem de Desconto</span>
+                  <span className="text-[9px] text-stone-400">{scoreBreakdown.desconto.val}</span>
+                </div>
+                <span className="text-xs font-black text-stone-900">{scoreBreakdown.desconto.score}/{scoreBreakdown.desconto.max}</span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-bold text-stone-700">Liquidez (Tipo)</span>
+                  <span className="text-[9px] text-stone-400">{scoreBreakdown.tipo.val}</span>
+                </div>
+                <span className="text-xs font-black text-stone-900">{scoreBreakdown.tipo.score}/{scoreBreakdown.tipo.max}</span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-bold text-stone-700">Segurança (Risco)</span>
+                  <span className="text-[9px] text-stone-400">{scoreBreakdown.risco.val}</span>
+                </div>
+                <span className="text-xs font-black text-stone-900">{scoreBreakdown.risco.score}/{scoreBreakdown.risco.max}</span>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-stone-50">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-black text-stone-400 uppercase">Total</span>
+                <span className="text-sm font-black text-primary">{opportunityScore}/10</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -152,17 +315,26 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
           </a>
         </div>
         
+        {imovel.last_updated && (
+          <div className="flex items-center gap-1.5 mb-3 px-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+            <span className="text-[10px] text-stone-400 font-medium">
+              Dados atualizados em {new Date(imovel.last_updated).toLocaleDateString('pt-BR')} às {new Date(imovel.last_updated).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+        )}
+        
         <div className="grid grid-cols-3 gap-2 bg-stone-50 p-3 rounded-xl mb-4 relative">
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">Avaliação</p>
+            <p className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">{imovel.titulo_avaliacao || 'Avaliação'}</p>
             <p className="text-xs font-bold text-stone-700 truncate" title={imovel.valor_avaliacao}>{imovel.valor_avaliacao || 'N/A'}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">Lance Mín.</p>
+            <p className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">{imovel.titulo_lance_minimo || 'Lance Mín.'}</p>
             <p className="text-xs font-bold text-primary-dark truncate" title={imovel.preco_leilao}>{imovel.preco_leilao || 'N/A'}</p>
           </div>
           <div className="relative">
-            <p className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">ROI Est.</p>
+            <p className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">{imovel.titulo_roi || 'ROI Est.'}</p>
             <div className="flex items-center gap-1">
               <p className="text-xs font-bold text-blue-700">{roiOriginal}%</p>
               {showRoi && (
@@ -221,7 +393,7 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
                     <input 
                       type="text" 
                       value={formatBRLInput(valLance)} 
-                      onChange={(e) => handleBRLChange(e.target.value, setValLance)}
+                      onChange={(e) => handleBRLChange(e.target.value, setValLance, 'lance')}
                       className="w-full text-xs px-3 py-2 rounded-lg border border-stone-200 bg-white outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-bold text-stone-700"
                     />
                   </div>
@@ -239,7 +411,7 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
                     <input 
                       type="text" 
                       value={formatBRLInput(valItbi)} 
-                      onChange={(e) => handleBRLChange(e.target.value, setValItbi)}
+                      onChange={(e) => handleBRLChange(e.target.value, setValItbi, 'itbi')}
                       className="w-full text-xs px-3 py-2 rounded-lg border border-stone-200 bg-white outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-bold text-stone-700"
                     />
                   </div>
@@ -248,7 +420,7 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
                     <input 
                       type="text" 
                       value={formatBRLInput(valRegistro)} 
-                      onChange={(e) => handleBRLChange(e.target.value, setValRegistro)}
+                      onChange={(e) => handleBRLChange(e.target.value, setValRegistro, 'registro')}
                       className="w-full text-xs px-3 py-2 rounded-lg border border-stone-200 bg-white outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-bold text-stone-700"
                     />
                   </div>
@@ -288,98 +460,125 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
           </button>
         </div>
 
-        <AnimatePresence>
-          {showAnalysis && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setShowAnalysis(false)}
-                className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
-              />
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        {createPortal(
+          <AnimatePresence>
+            {showAnalysis && (
+              <motion.div 
+                key="analysis-modal"
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
               >
-                <div className="p-6 border-b border-stone-100 flex justify-between items-center bg-white">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                      <ShieldCheck size={24} />
-                    </div>
-                    <div>
-                      <h4 className="font-black text-stone-900 uppercase tracking-tight leading-none">Análise Técnica</h4>
-                      <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest mt-1">TJ INVEST • EXCLUSIVO</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setShowAnalysis(false)}
-                    className="w-10 h-10 rounded-full bg-stone-50 flex items-center justify-center text-stone-400 hover:bg-stone-100 hover:text-stone-600 transition-all"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-
-                <div className="p-8 md:p-10 overflow-y-auto flex-grow bg-stone-50/30">
-                  <div className="relative">
-                    <Quote className="absolute -top-6 -left-6 text-primary/10 w-16 h-16 -z-10" />
-                    <div className="prose prose-stone max-w-none">
-                      <div className="text-stone-700 leading-relaxed whitespace-pre-wrap text-sm md:text-base">
-                        {imovel.analise_especialista || "Nossa IA está processando a análise detalhada deste imóvel. Em breve, você terá um relatório completo sobre os riscos e oportunidades."}
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-3 mt-8 border-t border-stone-100 pt-6">
-                      <div className="w-12 h-12 rounded-full bg-stone-200 border-2 border-white shadow-sm flex items-center justify-center text-stone-500 font-bold">
-                        TJ
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowAnalysis(false)}
+                  className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+                />
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                  className="relative bg-white w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-stone-200/50"
+                >
+                  <div className="p-6 border-b border-stone-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-20">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-inner">
+                        <ShieldCheck size={28} />
                       </div>
                       <div>
-                        <p className="font-bold text-stone-900 text-sm">Especialista TJ Invest</p>
-                        <p className="text-[10px] text-stone-400 uppercase font-bold tracking-tighter">Consultoria Estratégica</p>
+                        <h4 className="font-black text-stone-900 uppercase tracking-tight leading-none text-lg">{imovel.titulo_analise_especialista || 'Análise Técnica'}</h4>
+                        <p className="text-[10px] text-stone-400 font-black uppercase tracking-[0.2em] mt-1.5 flex items-center gap-2">
+                          <span className="w-1 h-1 rounded-full bg-primary"></span>
+                          TJ INVEST • RELATÓRIO EXCLUSIVO
+                        </p>
                       </div>
                     </div>
+                    <button 
+                      onClick={() => setShowAnalysis(false)}
+                      className="w-10 h-10 rounded-full bg-stone-50 flex items-center justify-center text-stone-400 hover:bg-stone-100 hover:text-stone-600 transition-all border border-stone-200/50"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
 
-                    <div className="mt-12 p-6 md:p-8 bg-white rounded-3xl border border-stone-200 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 right-0 p-4 opacity-10">
-                        <Phone size={80} className="rotate-12" />
+                  <div className="p-8 md:p-12 overflow-y-auto flex-grow bg-gradient-to-b from-white to-stone-50/50">
+                    <div className="relative max-w-prose mx-auto">
+                      <Quote className="absolute -top-10 -left-10 text-primary/5 w-24 h-24 -z-10" />
+                      
+                      <div className="prose prose-stone prose-sm md:prose-base max-w-none 
+                        prose-headings:font-black prose-headings:tracking-tight prose-headings:text-stone-900
+                        prose-h3:text-primary-dark prose-h3:mt-8 prose-h3:mb-4
+                        prose-p:text-stone-600 prose-p:leading-relaxed prose-p:mb-6
+                        prose-strong:text-stone-900 prose-strong:font-black
+                        prose-ul:list-disc prose-ul:pl-6
+                        prose-li:text-stone-600 prose-li:mb-2
+                        prose-a:text-primary prose-a:no-underline hover:prose-a:underline
+                        font-sans">
+                        {imovel.analise_especialista ? (
+                          <ReactMarkdown>{imovel.analise_especialista}</ReactMarkdown>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center text-stone-300 mb-4 animate-pulse">
+                              <TrendingUp size={32} />
+                            </div>
+                            <p className="text-stone-500 font-medium max-w-xs">
+                              Nossa IA está processando a análise detalhada deste imóvel. Em breve, você terá um relatório completo sobre os riscos e oportunidades.
+                            </p>
+                          </div>
+                        )}
                       </div>
                       
-                      <div className="relative z-10">
-                        <div className="flex items-center gap-2 mb-4 text-amber-600">
-                          <AlertCircle size={18} />
-                          <p className="text-xs font-black uppercase tracking-widest">Atenção ao Arrematante</p>
+                      <div className="flex items-center gap-4 mt-12 border-t border-stone-200/60 pt-8">
+                        <div className="w-14 h-14 rounded-2xl bg-stone-900 border-4 border-white shadow-xl flex items-center justify-center text-white font-black text-xl">
+                          TJ
+                        </div>
+                        <div>
+                          <p className="font-black text-stone-900 text-base leading-none">Especialista TJ Invest</p>
+                          <p className="text-[10px] text-stone-400 uppercase font-black tracking-widest mt-1">Consultoria Estratégica & Jurídica</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-16 p-8 md:p-10 bg-stone-900 rounded-[2.5rem] text-white relative overflow-hidden shadow-2xl shadow-stone-900/20">
+                        <div className="absolute top-0 right-0 p-8 opacity-10">
+                          <ShieldCheck size={120} className="rotate-12" />
                         </div>
                         
-                        <h5 className="text-xl font-bold text-stone-900 mb-3 leading-tight">Não arremate sem suporte especializado.</h5>
-                        <p className="text-sm text-stone-600 mb-8 leading-relaxed max-w-md">
-                          Leilões judiciais e extrajudiciais possuem nuances que podem comprometer seu capital. Nossa assessoria garante que você tenha segurança em cada etapa do processo.
-                        </p>
+                        <div className="relative z-10">
+                          <div className="flex items-center gap-2 mb-6 text-primary-light">
+                            <AlertCircle size={20} />
+                            <p className="text-xs font-black uppercase tracking-[0.2em]">Aviso de Segurança</p>
+                          </div>
+                          
+                          <h5 className="text-2xl md:text-3xl font-black mb-4 leading-tight">Segurança é o melhor investimento.</h5>
+                          <p className="text-stone-400 mb-10 leading-relaxed text-sm md:text-base max-w-md">
+                            Leilões possuem riscos ocultos que apenas uma análise técnica profunda pode revelar. Não arrisque seu patrimônio sem suporte especializado.
+                          </p>
 
-                        <a 
-                          href={`https://wa.me/${(imovel.whatsapp_assessoria || '5531973590970').replace(/\D/g, '')}?text=${encodeURIComponent(whatsappMessage)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center gap-3 bg-primary text-white font-bold px-8 py-4 rounded-2xl hover:bg-primary-dark transition-all shadow-xl shadow-primary/20 group w-full md:w-auto"
-                        >
-                          <Phone size={18} className="group-hover:rotate-12 transition-transform" />
-                          Falar com Especialista agora
-                        </a>
+                          <a 
+                            href={`https://wa.me/${(imovel.whatsapp_assessoria || '5531973590970').replace(/\D/g, '')}?text=${encodeURIComponent(whatsappMessage)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center gap-3 bg-primary text-white font-black px-10 py-5 rounded-2xl hover:bg-primary-dark transition-all shadow-xl shadow-primary/30 group w-full md:w-auto text-lg"
+                          >
+                            <Phone size={20} className="group-hover:rotate-12 transition-transform" />
+                            Consultoria Especializada
+                          </a>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                
-                <div className="p-4 bg-white border-t border-stone-100 text-center">
-                  <p className="text-[10px] text-stone-300 font-medium uppercase tracking-widest">
-                    Documento Interno • TJ Invest Assessoria
-                  </p>
-                </div>
+                  
+                  <div className="p-5 bg-stone-50 border-t border-stone-100 text-center">
+                    <p className="text-[9px] text-stone-400 font-black uppercase tracking-[0.3em]">
+                      Documento Confidencial • TJ Invest Assessoria © 2024
+                    </p>
+                  </div>
+                </motion.div>
               </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
         
         <div className="space-y-2 mb-6 flex-grow">
           <div className="flex justify-between text-xs text-stone-600">

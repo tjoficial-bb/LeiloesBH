@@ -28,13 +28,17 @@ async function runScrapeUpdate(propertyId: string, url: string) {
       scraper = new SaraivaScraper();
     }
     const result = await scraper.scrape(url);
+    console.log(`[Cron] Resultado do scrape para ${propertyId}:`, JSON.stringify(result, null, 2));
     if (result.success !== false) {
       const data = result.data || result;
+      console.log(`[Cron] Dados a serem atualizados para ${propertyId}:`, JSON.stringify(data, null, 2));
       await updateDoc(doc(firestore, 'imoveis', propertyId), {
         ...data,
         last_updated: new Date().toISOString()
       });
       console.log(`[Cron] Imóvel ${propertyId} atualizado com sucesso.`);
+    } else {
+      console.log(`[Cron] Scrape falhou ou requer login para ${propertyId}:`, result);
     }
   } catch (error) {
     console.error(`[Cron] Erro ao atualizar imóvel ${propertyId}:`, error);
@@ -46,7 +50,7 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
-  const PORT = process.env.PORT || 3000;
+  const PORT = 3000;
 
   // Cron Job Dinâmico
   let currentCronTask: any = null;
@@ -121,6 +125,50 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ success: false, error: 'Erro ao atualizar imóvel' });
+    }
+  });
+
+  app.post('/api/discovery/sync-auctioneer', async (req, res) => {
+    const { url, id } = req.body;
+    if (!url) return res.status(400).json({ success: false, error: 'URL é obrigatória' });
+
+    console.log(`[Discovery] Sincronizando leiloeiro: ${url}`);
+    try {
+      // Usar um scraper genérico para encontrar links de lotes
+      const response = await fetch(url);
+      const html = await response.text();
+      
+      // Regex simples para encontrar links que pareçam lotes ou imóveis
+      // Isso pode ser melhorado com IA no futuro
+      const linkRegex = /href=["']([^"']*(?:lote|imovel|item|detalhe|leilao)[^"']*)["']/gi;
+      const matches = html.matchAll(linkRegex);
+      const links = new Set<string>();
+      
+      const urlObj = new URL(url);
+      const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
+
+      for (const match of matches) {
+        let link = match[1];
+        if (link.startsWith('/')) link = baseUrl + link;
+        if (!link.startsWith('http')) continue;
+        if (link.includes(urlObj.host)) {
+          links.add(link);
+        }
+      }
+
+      const foundLinks = Array.from(links).slice(0, 15); // Limitar a 15 links por vez
+      
+      // Atualizar last_sync no Firestore
+      if (id) {
+        await updateDoc(doc(firestore, 'leiloeiros_monitorados', id), {
+          last_sync: new Date().toISOString()
+        });
+      }
+
+      res.json({ success: true, foundLinks });
+    } catch (error) {
+      console.error('[Discovery] Erro ao sincronizar leiloeiro:', error);
+      res.status(500).json({ success: false, error: 'Erro ao varrer site do leiloeiro' });
     }
   });
 

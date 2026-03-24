@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, deleteDoc, onSnapshot, writeBatch } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { GoogleGenAI } from "@google/genai";
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Settings, 
   Image as ImageIcon, 
@@ -22,7 +22,8 @@ import {
   Sparkles,
   Zap,
   Layout as LayoutIcon,
-  Search
+  Search,
+  Wand2
 } from 'lucide-react';
 
 declare global {
@@ -101,6 +102,7 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
     googleTagManagerId: '',
     headerBackgroundImage: '',
     headerOverlayOpacity: 0.5,
+    showFaqs: true,
   });
   const [faqs, setFaqs] = useState<any[]>([]);
   const [newFaq, setNewFaq] = useState({ question: '', answer: '' });
@@ -111,38 +113,36 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
   const [editingTestimonial, setEditingTestimonial] = useState<any>(null);
 
   const [isGeneratingHeader, setIsGeneratingHeader] = useState(false);
+  const [isGeneratingKeywords, setIsGeneratingKeywords] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const [headerPrompt, setHeaderPrompt] = useState('Escritório de luxo moderno, tons de esmeralda e dourado, minimalista, profissional, mercado imobiliário');
 
-  const compressImage = (base64Str: string): Promise<string> => {
+  const compressImage = (base64Str: string, maxWidth = 1200, maxHeight = 675, quality = 0.7): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image();
       img.src = base64Str;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1200;
-        const MAX_HEIGHT = 675; // 16:9
         let width = img.width;
         let height = img.height;
 
         if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
+          if (width > maxWidth) {
+            height *= maxWidth / width;
+            width = maxWidth;
           }
         } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
+          if (height > maxHeight) {
+            width *= maxHeight / height;
+            height = maxHeight;
           }
         }
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
-        // Compress to JPEG with 0.7 quality to stay well under 1MB
-        resolve(canvas.toDataURL('image/jpeg', 0.7));
+        resolve(canvas.toDataURL('image/jpeg', quality));
       };
     });
   };
@@ -280,6 +280,9 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
     const unsubHeader = onSnapshot(doc(db, 'settings', 'header'), (docSnap) => {
       if (docSnap.exists()) setSettings(prev => ({ ...prev, headerBackgroundImage: docSnap.data().headerBackgroundImage }));
     });
+    const unsubAssets = onSnapshot(doc(db, 'settings', 'assets'), (docSnap) => {
+      if (docSnap.exists()) setSettings(prev => ({ ...prev, ...docSnap.data() }));
+    });
     const unsubFaqs = onSnapshot(collection(db, 'faqs'), (snapshot) => {
       setFaqs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
@@ -294,26 +297,82 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
     };
   }, []);
 
+  const generateKeywords = async () => {
+    try {
+      setIsGeneratingKeywords(true);
+      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+      if (!apiKey) throw new Error("Chave de API não encontrada.");
+      
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Gere uma lista de 30 a 40 palavras-chave de SEO altamente relevantes e estratégicas para um site de assessoria em leilões de imóveis chamado "${settings.siteTitle}". 
+        Descrição do site: "${settings.siteDescription}". 
+        Inclua termos como "leilão de imóveis", "arrematação", "investimento imobiliário", "leilão judicial", "leilão extrajudicial", "oportunidade", "lucratividade", "segurança jurídica", e variações regionais ou específicas do nicho.
+        Retorne APENAS as palavras-chave separadas por vírgula, em uma única linha, sem numeração, sem explicações e sem introduções.`,
+      });
+      
+      const keywords = response.text.trim().replace(/^"|"$/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ');
+      setSettings(prev => ({ ...prev, seoKeywords: keywords }));
+      alert('Palavras-chave geradas com sucesso! Não esqueça de salvar as alterações.');
+    } catch (error) {
+      console.error("Erro ao gerar palavras-chave:", error);
+      alert("Erro ao gerar palavras-chave com IA. Verifique sua conexão ou chave de API.");
+    } finally {
+      setIsGeneratingKeywords(false);
+    }
+  };
+
   const saveSettings = async () => {
     try {
       setIsSaving(true);
-      const { headerBackgroundImage, ...otherSettings } = settings;
+      console.log("Iniciando salvamento das configurações...");
       
-      // Save main settings (excluding the heavy image)
+      // Filter out any undefined values that might cause Firestore to fail
+      const cleanSettings = Object.fromEntries(
+        Object.entries(settings).filter(([_, v]) => v !== undefined)
+      );
+      
+      // Extrair campos pesados para documentos separados
+      const { 
+        headerBackgroundImage, 
+        logoUrl, 
+        faviconUrl, 
+        ogImage, 
+        ...otherSettings 
+      } = cleanSettings;
+      
+      // Save main settings (excluding the heavy assets)
       await setDoc(doc(db, 'settings', 'site'), otherSettings, { merge: true });
+      console.log("Configurações gerais salvas.");
       
-      // Save header image separately to avoid 1MB document limit
-      if (headerBackgroundImage) {
-        console.log("Tamanho da imagem comprimida:", (headerBackgroundImage.length / 1024).toFixed(2), "KB");
-        await setDoc(doc(db, 'settings', 'header'), { headerBackgroundImage }, { merge: true });
-      } else {
-        // If image was removed, clear it from the separate doc too
-        await setDoc(doc(db, 'settings', 'header'), { headerBackgroundImage: '' }, { merge: true });
+      // Salvar imagem de fundo separadamente
+      if (headerBackgroundImage !== undefined) {
+        await setDoc(doc(db, 'settings', 'header'), { 
+          headerBackgroundImage: headerBackgroundImage || '' 
+        }, { merge: true });
+        console.log("Configurações de header salvas.");
+      }
+
+      // Salvar outros assets pesados separadamente
+      const assets: any = {};
+      if (logoUrl !== undefined) assets.logoUrl = logoUrl || '';
+      if (faviconUrl !== undefined) assets.faviconUrl = faviconUrl || '';
+      if (ogImage !== undefined) assets.ogImage = ogImage || '';
+
+      if (Object.keys(assets).length > 0) {
+        await setDoc(doc(db, 'settings', 'assets'), assets, { merge: true });
+        console.log("Assets (Logo/Favicon/OG) salvos separadamente.");
       }
       
       alert('Configurações salvas com sucesso!');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'settings/site');
+    } catch (error: any) {
+      console.error("Erro detalhado ao salvar:", error);
+      if (error.message?.includes('permission-denied')) {
+        alert('Erro de permissão: Você precisa estar logado como administrador (tjinvestoficial@gmail.com) para salvar.');
+      } else {
+        handleFirestoreError(error, OperationType.WRITE, 'settings/site');
+      }
     } finally {
       setIsSaving(false);
     }
@@ -558,8 +617,23 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
             <h3 className="font-bold text-stone-800 mb-4">SEO & Identidade Visual</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-xs font-semibold text-stone-600 mb-1">Palavras-chave SEO (separadas por vírgula)</label>
-                <input className="w-full border p-2 rounded" placeholder="leilão, imóveis, investimento, arremate" value={settings.seoKeywords || ''} onChange={e => setSettings({...settings, seoKeywords: e.target.value})} />
+                <label className="block text-xs font-semibold text-stone-600 mb-1 flex justify-between">
+                  Palavras-chave SEO (separadas por vírgula)
+                  <button 
+                    onClick={generateKeywords}
+                    disabled={isGeneratingKeywords}
+                    className="text-primary hover:text-primary-dark flex items-center gap-1 text-[10px] font-bold uppercase transition-colors disabled:opacity-50"
+                  >
+                    {isGeneratingKeywords ? 'Gerando...' : <><Wand2 size={10} /> Gerar com IA</>}
+                  </button>
+                </label>
+                <textarea 
+                  className="w-full border p-2 rounded text-sm" 
+                  placeholder="leilão, imóveis, investimento, arremate" 
+                  value={settings.seoKeywords || ''} 
+                  onChange={e => setSettings({...settings, seoKeywords: e.target.value})}
+                  rows={3}
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-stone-600 mb-1">URL Canônica</label>
@@ -623,12 +697,13 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
                         type="file" 
                         accept="image/*" 
                         className="hidden" 
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
                             const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setSettings({...settings, faviconUrl: reader.result as string});
+                            reader.onloadend = async () => {
+                              const compressed = await compressImage(reader.result as string, 64, 64, 0.9);
+                              setSettings({...settings, faviconUrl: compressed});
                             };
                             reader.readAsDataURL(file);
                           }
@@ -661,12 +736,13 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
                         type="file" 
                         accept="image/*" 
                         className="hidden" 
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
                             const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setSettings({...settings, ogImage: reader.result as string});
+                            reader.onloadend = async () => {
+                              const compressed = await compressImage(reader.result as string, 1200, 630, 0.7);
+                              setSettings({...settings, ogImage: compressed});
                             };
                             reader.readAsDataURL(file);
                           }
@@ -728,12 +804,13 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
                       type="file" 
                       accept="image/*" 
                       className="hidden" 
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
                           const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setSettings({...settings, logoUrl: reader.result as string});
+                          reader.onloadend = async () => {
+                            const compressed = await compressImage(reader.result as string, 400, 200, 0.8);
+                            setSettings({...settings, logoUrl: compressed});
                           };
                           reader.readAsDataURL(file);
                         }
@@ -922,6 +999,32 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
             </div>
           </div>
           <div className="mb-6 space-y-4 bg-stone-50 p-4 rounded-xl border border-stone-100">
+            <div className="flex flex-wrap gap-6">
+              <label className="flex items-center gap-2 text-sm font-bold text-stone-700 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={settings.showTestimonials} 
+                  onChange={e => setSettings({...settings, showTestimonials: e.target.checked})}
+                  className="rounded border-stone-300 text-primary focus:ring-primary"
+                />
+                Exibir Seção de Depoimentos
+              </label>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-bold text-stone-600">Estilo:</label>
+                <select 
+                  className="border p-1 rounded text-sm" 
+                  value={settings.testimonialStyle} 
+                  onChange={e => setSettings({...settings, testimonialStyle: e.target.value})}
+                >
+                  <option value="grid">Grade (Grid)</option>
+                  <option value="carousel">Carrossel</option>
+                  <option value="list">Lista</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-6 space-y-4 bg-stone-50 p-4 rounded-xl border border-stone-100">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input className="border p-2 rounded" placeholder="Nome do Cliente" value={newTestimonial.name} onChange={e => setNewTestimonial({...newTestimonial, name: e.target.value})} />
               <input className="border p-2 rounded" placeholder="Cargo/Papel (ex: Investidor)" value={newTestimonial.role} onChange={e => setNewTestimonial({...newTestimonial, role: e.target.value})} />
@@ -1044,8 +1147,25 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
         <div className="bg-white p-8 rounded-xl shadow-sm border border-stone-100">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-stone-800">Perguntas Frequentes</h2>
-            <button onClick={saveSettings} className="bg-primary text-white px-4 py-1.5 rounded-lg text-sm font-bold hover:bg-primary-dark transition-colors shadow-sm">Salvar Seção</button>
+            <button onClick={saveSettings} className="bg-primary text-white px-4 py-1.5 rounded-lg text-sm font-bold hover:bg-primary-dark transition-colors shadow-sm">
+              {isSaving ? 'Salvando...' : 'Salvar Seção'}
+            </button>
           </div>
+          
+          <div className="mb-6 space-y-4 bg-stone-50 p-4 rounded-xl border border-stone-100">
+            <div className="flex flex-wrap gap-6">
+              <label className="flex items-center gap-2 text-sm font-bold text-stone-700 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={settings.showFaqs !== false} 
+                  onChange={e => setSettings({...settings, showFaqs: e.target.checked})}
+                  className="rounded border-stone-300 text-primary focus:ring-primary"
+                />
+                Exibir Seção de FAQ
+              </label>
+            </div>
+          </div>
+
           <div className="mb-6 space-y-4">
             <input className="w-full border p-2 rounded" placeholder="Pergunta" value={newFaq.question} onChange={e => setNewFaq({...newFaq, question: e.target.value})} />
             <textarea className="w-full border p-2 rounded" placeholder="Resposta" value={newFaq.answer} onChange={e => setNewFaq({...newFaq, answer: e.target.value})} rows={3} />

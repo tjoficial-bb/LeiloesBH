@@ -124,7 +124,10 @@ export function Layout({ children, user, onLogin, onLogout, onNavigate, settings
             <button onClick={() => handleNavigate('/sobre')} className="hover:text-primary transition">Sobre</button>
             <a href={`https://wa.me/${(settings.phone || '5531973590970').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition">Contato</a>
             {user?.email === 'tjinvestoficial@gmail.com' && (
-              <button onClick={() => handleNavigate('/admin')} className="hover:text-primary transition">Admin</button>
+              <>
+                <button onClick={() => handleNavigate('/admin/discovery')} className="hover:text-primary transition">Discovery</button>
+                <button onClick={() => handleNavigate('/admin')} className="hover:text-primary transition">Admin</button>
+              </>
             )}
             {user && (
               <button onClick={onLogout} className="text-red-500 hover:text-red-700 transition"><LogOut size={20} /></button>
@@ -159,7 +162,10 @@ export function Layout({ children, user, onLogin, onLogout, onNavigate, settings
             <button onClick={() => handleNavigate('/sobre')} className="text-left py-2 hover:text-primary transition">Sobre</button>
             <a href={`https://wa.me/${(settings.phone || '5531973590970').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-left py-2 hover:text-primary transition block">Contato</a>
             {user?.email === 'tjinvestoficial@gmail.com' && (
-              <button onClick={() => handleNavigate('/admin')} className="text-left py-2 hover:text-primary transition">Admin</button>
+              <>
+                <button onClick={() => handleNavigate('/admin/discovery')} className="text-left py-2 hover:text-primary transition">Discovery</button>
+                <button onClick={() => handleNavigate('/admin')} className="text-left py-2 hover:text-primary transition">Admin</button>
+              </>
             )}
             {user && (
               <button onClick={() => { onLogout(); setIsMobileMenuOpen(false); }} className="text-left py-2 text-red-500 hover:text-red-700 transition flex items-center gap-2"><LogOut size={20} /> Sair</button>

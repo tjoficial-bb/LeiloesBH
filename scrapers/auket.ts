@@ -67,10 +67,6 @@ export class AuketScraper implements Scraper {
           // Extrair tipo
           const tipo = cleanText(document.querySelector('div.border-lead-500')?.innerText || '');
           
-          // Extrair valores
-          const preco_leilao = document.querySelector('span.text-lead-500.font-extrabold')?.innerText.trim() || '0';
-          const valor_avaliacao = document.querySelector('p.line-through')?.innerText.trim() || '0';
-          
           // Extrair desconto de forma mais segura
           let desconto = '';
           const descontoElements = Array.from(document.querySelectorAll('span.bg-extra-500'));
@@ -86,34 +82,95 @@ export class AuketScraper implements Scraper {
           const condicoes_pagamento = document.querySelector('div[class*="text-black/70"][class*="font-normal"]')?.innerText.trim() || '';
           
           // Extrair datas e valores de praça - abordagem mais robusta
-          const extractPracaInfo = (keywords) => {
-            const elements = Array.from(document.querySelectorAll('*')).filter(el => {
-              const text = el.textContent || '';
-              return keywords.some(k => text.toLowerCase().includes(k.toLowerCase())) && text.length < 150 && el.children.length === 0;
-            });
+        const extractPracaInfo = (keywords) => {
+          const elements = Array.from(document.querySelectorAll('*')).filter(el => {
+            const text = el.textContent || '';
+            return keywords.some(k => text.toLowerCase().includes(k.toLowerCase())) && text.length < 100 && el.children.length === 0;
+          });
+          
+          for (const el of elements) {
+            let current = el;
+            let foundData = '';
+            let foundValor = '';
             
-            for (const el of elements) {
-              let current = el;
-              for (let i = 0; i < 5; i++) { // Aumentado para 5 níveis de busca
-                if (!current) break;
-                const parentText = current.innerText || current.textContent || '';
-                const matchData = parentText.match(/\\d{2}\\/\\d{2}\\/\\d{4}/);
-                const matchValor = parentText.match(/R\\$\\s*[\\d\\.,]+/);
-                
-                if (matchData && matchValor) {
-                  return { data: matchData[0], valor: matchValor[0] };
-                }
-                current = current.parentElement;
+            // Busca em até 10 níveis de parentesco
+            for (let i = 0; i < 10; i++) {
+              if (!current) break;
+              const parentText = current.innerText || current.textContent || '';
+              
+              if (!foundData) {
+                const matchData = parentText.match(/(\d{2}[\/\.]\d{2}[\/\.]\d{2,4})/);
+                if (matchData) foundData = matchData[1];
               }
+              
+              if (!foundValor) {
+                const matchValor = parentText.match(/(R\$\s*[\d\.,]+)/i);
+                if (matchValor) foundValor = matchValor[1];
+              }
+              
+              if (foundData && foundValor) return { data: foundData, valor: foundValor };
+              
+              // Tenta buscar nos irmãos se não encontrou no pai
+              const siblings = Array.from(current.parentElement?.children || []);
+              for (const sibling of siblings) {
+                if (sibling === current) continue;
+                const siblingText = sibling.innerText || sibling.textContent || '';
+                
+                if (!foundData) {
+                  const matchData = siblingText.match(/(\d{2}[\/\.]\d{2}[\/\.]\d{2,4})/);
+                  if (matchData) foundData = matchData[1];
+                }
+                
+                if (!foundValor) {
+                  const matchValor = siblingText.match(/(R\$\s*[\d\.,]+)/i);
+                  if (matchValor) foundValor = matchValor[1];
+                }
+                
+                if (foundData && foundValor) return { data: foundData, valor: foundValor };
+              }
+              
+              current = current.parentElement;
             }
-            return { data: '', valor: '' };
-          };
+            if (foundData || foundValor) return { data: foundData, valor: foundValor };
+          }
+          return { data: '', valor: '' };
+        };
 
-          const p1 = extractPracaInfo(['1ª Praça', '1º Leilão', '1ª Praca', '1º Leilao', 'Primeira Praça', 'Primeiro Leilão']);
-          const p2 = extractPracaInfo(['2ª Praça', '2º Leilão', '2ª Praca', '2º Leilao', 'Segunda Praça', 'Segundo Leilão']);
+        const extractValueByKeyword = (keywords) => {
+          const elements = Array.from(document.querySelectorAll('*')).filter(el => {
+            const text = el.textContent || '';
+            return keywords.some(k => text.toLowerCase().includes(k.toLowerCase())) && text.length < 100 && el.children.length === 0;
+          });
+          
+          for (const el of elements) {
+            let current = el;
+            for (let i = 0; i < 6; i++) {
+              if (!current) break;
+              const text = current.innerText || current.textContent || '';
+              // Regex para capturar valores monetários (R$ 1.234,56 ou apenas 1.234,56)
+              const match = text.match(/(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+              if (match) return 'R$ ' + match[1];
+              
+              const nextSibling = current.nextElementSibling;
+              if (nextSibling) {
+                const siblingText = nextSibling.innerText || nextSibling.textContent || '';
+                const siblingMatch = siblingText.match(/(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+                if (siblingMatch) return 'R$ ' + siblingMatch[1];
+              }
+              current = current.parentElement;
+            }
+          }
+          return '';
+        };
+
+        const p1 = extractPracaInfo(['1ª Praça', '1º Leilão', '1ª Praca', '1º Leilao', 'Primeira Praça', 'Primeiro Leilão', '1º Ciclo', '1ª Data', '1º Encerramento', '1º Praça', '1ª Leilão']);
+        const p2 = extractPracaInfo(['2ª Praça', '2º Leilão', '2ª Praca', '2º Leilao', 'Segunda Praça', 'Segundo Leilão', '2º Ciclo', '2ª Data', '2º Encerramento', '2º Praça', '2ª Leilão']);
           
           let primeira_praca_data = p1.data, primeira_praca_valor = p1.valor, segunda_praca_data = p2.data, segunda_praca_valor = p2.valor;
           
+          let valor_avaliacao = document.querySelector('p.line-through')?.innerText.trim() || extractValueByKeyword(['Avaliação', 'Valor de Avaliação', 'Avaliado em', 'Valor do Imóvel', 'Valor de Mercado', 'Preço de Avaliação']) || '0';
+          let preco_leilao = document.querySelector('span.text-lead-500.font-extrabold')?.innerText.trim() || extractValueByKeyword(['Lance Mínimo', 'Lance Inicial', 'Valor Mínimo', 'Preço Mínimo', 'Valor de Venda', 'Lance Atual']) || '0';
+
           // Fallback para a lógica antiga caso a nova não encontre
           if (!primeira_praca_data) {
             const pracas = Array.from(document.querySelectorAll('div')).filter(div => 

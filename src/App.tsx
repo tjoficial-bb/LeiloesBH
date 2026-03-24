@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { CardImovel } from './components/CardImovel';
 import { Layout } from './components/Layout';
 import { motion } from 'motion/react';
@@ -14,6 +15,7 @@ import AdminSettings from './AdminSettings';
 import BlogList from './BlogList';
 import BlogPost from './BlogPost';
 import AdminBlog from './AdminBlog';
+import DiscoveryDashboard from './DiscoveryDashboard';
 import { BlogCard } from './components/BlogCard';
 import { db, auth } from './firebase';
 import { collection, addDoc, updateDoc, doc, onSnapshot, getDocs, deleteDoc, query, limit, orderBy, getDocFromServer, where, setDoc } from 'firebase/firestore';
@@ -128,9 +130,16 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'settings/header');
     });
 
+    const unsubAssets = onSnapshot(doc(db, 'settings', 'assets'), (doc) => {
+      if (doc.exists()) setSettings((prev: any) => ({ ...prev, ...doc.data() }));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'settings/assets');
+    });
+
     return () => {
       unsub();
       unsubHeader();
+      unsubAssets();
     };
   }, []);
 
@@ -435,6 +444,34 @@ export default function App() {
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'imoveis');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleAddFromDiscovery = async (discoveryUrl: string) => {
+    if (!(user?.email === ADMIN_EMAIL)) return;
+    setIsProcessing(true);
+    try {
+      const response = await fetch(`${window.location.origin}/api/scrape`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: discoveryUrl })
+      });
+      const result = await response.json();
+      if (result.success) {
+        const imovelData = result.data.data || result.data;
+        await addDoc(collection(db, 'imoveis'), {
+          ...imovelData,
+          addedAt: new Date().toISOString()
+        });
+        alert('Imóvel importado com sucesso!');
+      } else {
+        alert('Erro ao importar imóvel.');
+      }
+    } catch (error) {
+      console.error('Erro ao importar da descoberta:', error);
+      alert('Erro ao importar imóvel.');
     } finally {
       setIsProcessing(false);
     }
@@ -939,9 +976,14 @@ Retorne apenas o texto da análise.`;
       {currentPage.startsWith('/blog/') && <BlogPost slug={currentPage.split('/blog/')[1]} onNavigate={navigate} />}
       {currentPage === '/admin' && <AdminSettings onNavigate={navigate} />}
       {currentPage === '/admin/blog' && <AdminBlog />}
+      {currentPage === '/admin/discovery' && (
+        <div className="max-w-7xl mx-auto px-4 py-12">
+          <DiscoveryDashboard onAddProperty={handleAddFromDiscovery} />
+        </div>
+      )}
       
-      {editingImovel && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      {editingImovel && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[9999]">
           <div className="bg-white p-6 md:p-8 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-xl">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-stone-800">Editar Imóvel</h2>
@@ -983,7 +1025,30 @@ Retorne apenas o texto da análise.`;
                   <button 
                     type="button"
                     onClick={() => {
-                      const parseCurrency = (val: any) => parseFloat(String(val || '0').replace(/[^0-9,]/g, '').replace(',', '.') || '0');
+                      const parseCurrency = (val: any) => {
+                        const strVal = String(val || '0').trim();
+                        if (/^\\d+(\\.\\d+)?$/.test(strVal)) return parseFloat(strVal);
+                        const cleanStr = strVal.replace(/[^0-9,.]/g, '');
+                        if (cleanStr.includes(',') && cleanStr.includes('.')) {
+                          const lastComma = cleanStr.lastIndexOf(',');
+                          const lastDot = cleanStr.lastIndexOf('.');
+                          if (lastComma > lastDot) {
+                            return parseFloat(cleanStr.replace(/\\./g, '').replace(',', '.'));
+                          } else {
+                            return parseFloat(cleanStr.replace(/,/g, ''));
+                          }
+                        }
+                        if (cleanStr.includes(',')) {
+                          return parseFloat(cleanStr.replace(',', '.'));
+                        }
+                        if (cleanStr.includes('.')) {
+                          if (/\\.\\d{2}$/.test(cleanStr) && cleanStr.split('.').length === 2) {
+                            return parseFloat(cleanStr);
+                          }
+                          return parseFloat(cleanStr.replace(/\\./g, ''));
+                        }
+                        return parseFloat(cleanStr || '0');
+                      };
                       const mercado = parseCurrency(editingImovel.valor_mercado);
                       const arremate = parseCurrency(editingImovel.estimativa_arrematacao);
                       if (mercado > 0 && arremate > 0) {
@@ -1065,17 +1130,6 @@ Retorne apenas o texto da análise.`;
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-stone-700 mb-1">Análise do Especialista</label>
-                <textarea 
-                  value={editingImovel.analise_especialista || ''} 
-                  onChange={(e) => setEditingImovel({...editingImovel, analise_especialista: e.target.value})} 
-                  className="w-full border border-stone-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
-                  rows={4}
-                  placeholder="Descreva os pontos positivos e negativos do imóvel..."
-                />
-              </div>
-
-              <div className="md:col-span-2">
                 <label className="block text-sm font-semibold text-stone-700 mb-1">WhatsApp para Assessoria (Opcional)</label>
                 <input 
                   type="text" 
@@ -1154,7 +1208,8 @@ Retorne apenas o texto da análise.`;
               <button onClick={() => handleUpdate(editingImovel)} className="bg-primary text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-primary-dark transition-colors shadow-sm">Salvar Alterações</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </Layout>
   );

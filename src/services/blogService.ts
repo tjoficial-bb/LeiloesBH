@@ -177,8 +177,13 @@ Retorne APENAS um array JSON de strings. Exemplo: ["Tópico 1", "Tópico 2"]`;
   }
 };
 
-export const generateBlogImage = async (prompt: string) => {
+export const generateBlogImage = async (prompt: string, withText: boolean = false, style: string = 'Fotografia realista', customPrompt?: string) => {
   if (!API_KEY) throw new Error("API Key not found");
+
+  const finalPrompt = customPrompt || prompt;
+  const textInstruction = withText 
+    ? `Inclua o título "${prompt}" de forma legível e elegante na imagem, usando tipografia moderna e profissional.` 
+    : "NÃO inclua nenhum texto, palavras ou letras na imagem. A imagem deve ser puramente visual.";
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
@@ -186,7 +191,7 @@ export const generateBlogImage = async (prompt: string) => {
     contents: {
       parts: [
         {
-          text: `Uma imagem profissional, cinematográfica e de alta qualidade para um blog de investimentos imobiliários. O tema é: ${prompt}. Estilo: Fotografia realista, iluminação elegante, tons de stone e dourado.`,
+          text: `Uma imagem profissional, cinematográfica e de alta qualidade para um blog de investimentos imobiliários. O tema é: ${finalPrompt}. Estilo: ${style}, iluminação elegante, tons de stone e dourado. ${textInstruction}`,
         },
       ],
     },

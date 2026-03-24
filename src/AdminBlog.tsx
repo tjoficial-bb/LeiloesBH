@@ -65,6 +65,9 @@ export default function AdminBlog() {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
   const [isGeneratingTopics, setIsGeneratingTopics] = useState(false);
+  const [imageWithText, setImageWithText] = useState(false);
+  const [imageStyle, setImageStyle] = useState('Fotografia realista');
+  const [imagePrompt, setImagePrompt] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [suggestedTopics, setSuggestedTopics] = useState<string[]>([
     "Como investir em leilões de imóveis com segurança",
@@ -200,7 +203,7 @@ export default function AdminBlog() {
     if (!currentPost.title) return alert("Por favor, informe um título para o artigo primeiro.");
     setIsGeneratingImage(true);
     try {
-      const imageUrl = await generateBlogImage(currentPost.title);
+      const imageUrl = await generateBlogImage(currentPost.title, imageWithText, imageStyle, imagePrompt);
       setCurrentPost({ ...currentPost, imageUrl });
     } catch (error) {
       console.error("Erro na geração de imagem:", error);
@@ -436,6 +439,46 @@ export default function AdminBlog() {
                     <ImageIcon size={18} className="text-primary" />
                     Imagem de Capa
                   </h3>
+                  
+                  <div className="space-y-4 mb-4">
+                    <div>
+                      <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Estilo da Imagem</label>
+                      <select 
+                        value={imageStyle} 
+                        onChange={e => setImageStyle(e.target.value)}
+                        className="w-full border border-stone-200 p-2 rounded-lg text-xs focus:ring-2 focus:ring-primary outline-none"
+                      >
+                        <option value="Fotografia realista">Fotografia Realista</option>
+                        <option value="Ilustração 3D">Ilustração 3D</option>
+                        <option value="Arte Digital">Arte Digital</option>
+                        <option value="Minimalista">Minimalista</option>
+                        <option value="Abstrato">Abstrato</option>
+                        <option value="Cinematográfico">Cinematográfico</option>
+                      </select>
+                    </div>
+                    
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={imageWithText} 
+                        onChange={e => setImageWithText(e.target.checked)}
+                        className="rounded border-stone-300 text-primary focus:ring-primary"
+                      />
+                      <span className="text-xs font-bold text-stone-600">Incluir título na imagem</span>
+                    </label>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Prompt Customizado (Opcional)</label>
+                      <textarea 
+                        value={imagePrompt} 
+                        onChange={e => setImagePrompt(e.target.value)}
+                        className="w-full border border-stone-200 p-2 rounded-lg text-xs focus:ring-2 focus:ring-primary outline-none resize-none"
+                        placeholder="Descreva o que deseja na imagem..."
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+
                   <div className="flex gap-2 mb-4">
                     <input 
                       type="text" 
