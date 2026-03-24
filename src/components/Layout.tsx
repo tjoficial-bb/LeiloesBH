@@ -78,9 +78,7 @@ export function Layout({ children, user, onLogin, onLogout, onNavigate, settings
 
   return (
     <div className="min-h-screen flex flex-col grain-overlay" style={{ background: 'var(--body-bg, #fafaf9)', backgroundAttachment: 'fixed' }}>
-      <motion.header 
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
+      <header 
         className="sticky top-0 z-50 shadow-sm transition-all duration-300 grain-overlay overflow-hidden"
         style={{ 
           background: settings?.headerBackgroundImage ? `url(${settings.headerBackgroundImage}) center/cover no-repeat` : 'var(--header-bg, #f5f5f4)', 
@@ -174,7 +172,7 @@ export function Layout({ children, user, onLogin, onLogout, onNavigate, settings
             )}
           </div>
         )}
-      </motion.header>
+      </header>
       
       {settings.showTicker !== false && (
         <div className="relative z-10">

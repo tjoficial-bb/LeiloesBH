@@ -11,7 +11,7 @@
   --color-primary-dark: var(--primary-dark-color, #059669);
   --color-primary-light: var(--primary-light-color, #34d399);
 
-  --animate-marquee: marquee 25s linear infinite;
+  --animate-marquee: marquee 15s linear infinite;
   
   @keyframes marquee {
     0% { transform: translateX(0%); }

@@ -70,6 +70,7 @@ export default function App() {
     googleTagManagerId: '',
     headerBackgroundImage: '',
     headerOverlayOpacity: 0.5,
+    logoUrl: 'https://i.postimg.cc/14q5TzRL/logo.png',
   });
 
   useEffect(() => {
@@ -357,7 +358,7 @@ export default function App() {
             carouselRef.current.scrollBy({ left: 300, behavior: 'smooth' });
           }
         }
-      }, 3000); // Reduced from 5000 to 3000 to increase speed
+      }, 2000); // Reduced to 2000ms for faster scrolling
       return () => clearInterval(interval);
     }
   }, [settings.testimonialStyle, testimonials, isCarouselPaused]);
@@ -833,11 +834,8 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                   
                   <div ref={carouselRef} className="flex overflow-x-auto gap-6 pb-8 snap-x no-scrollbar scroll-smooth">
                     {testimonials.map((t, i) => (
-                      <motion.div 
+                      <div 
                         key={t.id}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        viewport={{ once: true }}
                         className="min-w-[300px] md:min-w-[400px] snap-center bg-white p-8 rounded-2xl shadow-sm border border-stone-100 flex flex-col hover:shadow-md transition-shadow"
                       >
                         <div className="flex items-center gap-4 mb-6">
@@ -857,7 +855,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                           </div>
                         </div>
                         <p className="text-stone-600 leading-relaxed mb-4 flex-grow italic text-lg">"{t.text}"</p>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
 
@@ -903,12 +901,8 @@ Retorne apenas o texto da análise formatado em Markdown.`;
               ) : settings.testimonialStyle === 'list' ? (
                 <div className="max-w-3xl mx-auto space-y-6">
                   {testimonials.map((t, i) => (
-                    <motion.div 
+                    <div 
                       key={t.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.3 }}
                       className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 flex gap-6 items-start hover:shadow-md transition-shadow"
                     >
                       {t.photoUrl ? (
@@ -928,18 +922,14 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                         </div>
                         <p className="text-stone-600 leading-relaxed italic">"{t.text}"</p>
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               ) : settings.testimonialStyle === 'cards' ? (
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   {testimonials.map((t, i) => (
-                    <motion.div 
+                    <div 
                       key={t.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.3 }}
                       className="bg-stone-50 p-5 rounded-xl border border-stone-200 flex flex-col"
                     >
                       <div className="flex text-amber-400 text-[10px] mb-3">
@@ -953,18 +943,14 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                           <p className="text-[8px] text-stone-400 uppercase">{t.role}</p>
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                   {testimonials.map((t, i) => (
-                    <motion.div 
+                    <div 
                       key={t.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.3 }}
                       className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 flex flex-col hover:shadow-md transition-shadow"
                     >
                       <div className="flex items-center gap-4 mb-4">
@@ -986,7 +972,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                       <div className="pt-4 border-t border-stone-50">
                         <p className="text-[10px] text-stone-400 uppercase tracking-widest font-bold">{t.role}</p>
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -1010,15 +996,11 @@ Retorne apenas o texto da análise formatado em Markdown.`;
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {featuredPosts.map((post, index) => (
-                  <motion.div
+                  <div
                     key={post.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.3 }}
                   >
                     <BlogCard post={post} onNavigate={navigate} />
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             </div>
