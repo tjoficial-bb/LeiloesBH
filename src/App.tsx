@@ -7,7 +7,6 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { CardImovel } from './components/CardImovel';
 import { Layout } from './components/Layout';
-import { motion } from 'motion/react';
 import { Heart, Filter, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import Sobre from './Sobre';
 import FAQ from './FAQ';
@@ -355,10 +354,10 @@ export default function App() {
           if (scrollLeft + clientWidth >= scrollWidth - 10) {
             carouselRef.current.scrollTo({ left: 0, behavior: 'smooth' });
           } else {
-            carouselRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+            carouselRef.current.scrollBy({ left: 500, behavior: 'smooth' });
           }
         }
-      }, 2000); // Reduced to 2000ms for faster scrolling
+      }, 1000); // Reduced to 1000ms and increased scroll amount for faster scrolling
       return () => clearInterval(interval);
     }
   }, [settings.testimonialStyle, testimonials, isCarouselPaused]);

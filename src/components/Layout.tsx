@@ -5,7 +5,6 @@ import { db } from '../firebase';
 import { Ticker } from './Ticker';
 import { WhatsAppButton } from './WhatsAppButton';
 import { ScrollToTop } from './ScrollToTop';
-import { motion, AnimatePresence } from 'motion/react';
 
 export function Layout({ children, user, onLogin, onLogout, onNavigate, settings }: { children: ReactNode, user: any, onLogin: () => void, onLogout: () => void, onNavigate: (path: string) => void, settings: any }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -181,17 +180,9 @@ export function Layout({ children, user, onLogin, onLogout, onNavigate, settings
       )}
 
       <main className="flex-grow max-w-7xl mx-auto w-full p-4 md:p-8 relative z-10">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={window.location.pathname}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            {children}
-          </motion.div>
-        </AnimatePresence>
+        <div key={window.location.pathname}>
+          {children}
+        </div>
       </main>
 
       <div className="relative z-50">
