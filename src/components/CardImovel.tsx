@@ -1,6 +1,6 @@
 import { memo, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Calculator, X, Info, Phone, Quote, ShieldCheck, AlertCircle, Heart, Map, TrendingUp, RefreshCw } from 'lucide-react';
+import { Calculator, X, Info, Phone, Quote, ShieldCheck, AlertCircle, Heart, Map, TrendingUp, RefreshCw, Edit, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 
@@ -11,7 +11,11 @@ export const CardImovel = memo(({
   onToggleFavorite,
   settings,
   isAdmin = false,
-  onManualFix
+  onManualFix,
+  onRefresh,
+  onEdit,
+  onDelete,
+  isUpdating = false
 }: { 
   imovel: any, 
   showRoi?: boolean, 
@@ -19,7 +23,11 @@ export const CardImovel = memo(({
   onToggleFavorite?: () => void,
   settings?: any,
   isAdmin?: boolean,
-  onManualFix?: (field: 'primeira' | 'segunda') => void
+  onManualFix?: (field: 'primeira' | 'segunda') => void,
+  onRefresh?: () => void,
+  onEdit?: () => void,
+  onDelete?: () => void,
+  isUpdating?: boolean
 }) => {
   const [showCalc, setShowCalc] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
@@ -240,9 +248,36 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
           alt={imovel.titulo} 
           className="w-full h-full object-cover" 
           referrerPolicy="no-referrer"
+          loading="lazy"
         />
         
         <div className="absolute top-3 right-3 flex flex-col gap-2">
+          {isAdmin && (
+            <div className="flex flex-col gap-2">
+              <button 
+                onClick={(e) => { e.preventDefault(); onEdit?.(); }}
+                className="p-2 bg-white/90 text-blue-600 rounded-full shadow-lg hover:bg-blue-600 hover:text-white transition-all backdrop-blur-sm"
+                title="Editar Imóvel"
+              >
+                <Edit size={18} />
+              </button>
+              <button 
+                onClick={(e) => { e.preventDefault(); onRefresh?.(); }}
+                disabled={isUpdating}
+                className={`p-2 bg-white/90 text-primary rounded-full shadow-lg hover:bg-primary hover:text-white transition-all backdrop-blur-sm ${isUpdating ? 'animate-spin' : ''}`}
+                title="Atualizar Dados"
+              >
+                <RefreshCw size={18} />
+              </button>
+              <button 
+                onClick={(e) => { e.preventDefault(); onDelete?.(); }}
+                className="p-2 bg-white/90 text-red-600 rounded-full shadow-lg hover:bg-red-600 hover:text-white transition-all backdrop-blur-sm"
+                title="Excluir Imóvel"
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
+          )}
           <button 
             onClick={(e) => { e.preventDefault(); onToggleFavorite?.(); }}
             className={`p-2 rounded-full shadow-lg transition-all ${isFavorite ? 'bg-red-500 text-white' : 'bg-white/80 text-stone-400 hover:text-red-500 backdrop-blur-sm'}`}
@@ -309,13 +344,13 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
           <div>
             <div className="flex items-center gap-1">
               <p className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">1ª Praça (Aval.)</p>
-              {isAdmin && onManualFix && (
+              {isAdmin && (
                 <button 
-                  onClick={() => onManualFix('primeira')}
+                  onClick={(e) => { e.preventDefault(); onRefresh?.(); }}
                   className="p-0.5 rounded text-stone-300 hover:text-primary transition-colors"
-                  title="Puxar do Preço de Avaliação"
+                  title="Atualizar dados do site"
                 >
-                  <RefreshCw size={10} />
+                  <RefreshCw size={10} className={isUpdating ? 'animate-spin' : ''} />
                 </button>
               )}
             </div>
@@ -324,13 +359,13 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
           <div>
             <div className="flex items-center gap-1">
               <p className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">2ª Praça (Lance)</p>
-              {isAdmin && onManualFix && (
+              {isAdmin && (
                 <button 
-                  onClick={() => onManualFix('segunda')}
+                  onClick={(e) => { e.preventDefault(); onRefresh?.(); }}
                   className="p-0.5 rounded text-stone-300 hover:text-primary transition-colors"
-                  title="Puxar do Preço de Lance Mínimo"
+                  title="Atualizar dados do site"
                 >
-                  <RefreshCw size={10} />
+                  <RefreshCw size={10} className={isUpdating ? 'animate-spin' : ''} />
                 </button>
               )}
             </div>
@@ -600,7 +635,7 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
           </div>
         </div>
         
-        <a href={imovel.link_original} target="_blank" rel="noopener noreferrer" className="block text-center bg-stone-900 text-white font-semibold px-4 py-3 rounded-xl hover:bg-stone-800 transition-colors mt-auto">
+        <a href={imovel.link_botao || imovel.link_original} target="_blank" rel="noopener noreferrer" className="block text-center bg-stone-900 text-white font-semibold px-4 py-3 rounded-xl hover:bg-stone-800 transition-colors mt-auto">
           {imovel.texto_botao || 'Ver Detalhes do Leilão'}
         </a>
       </div>

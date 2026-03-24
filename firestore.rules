@@ -135,22 +135,26 @@ service cloud.firestore {
 
     match /settings/{docId} {
       allow read: if true;
-      allow write: if isAdmin() && isValidSetting(request.resource.data);
+      allow create, update: if isAdmin() && isValidSetting(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /faqs/{faqId} {
       allow read: if true;
-      allow write: if isAdmin() && isValidFAQ(request.resource.data);
+      allow create, update: if isAdmin() && isValidFAQ(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /testimonials/{testimonialId} {
       allow read: if true;
-      allow write: if isAdmin() && isValidTestimonial(request.resource.data);
+      allow create, update: if isAdmin() && isValidTestimonial(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /posts/{postId} {
       allow read: if true;
-      allow write: if isAdmin() && isValidBlogPost(request.resource.data);
+      allow create, update: if isAdmin() && isValidBlogPost(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /users/{userId}/favorites/{favoriteId} {
@@ -164,8 +168,8 @@ service cloud.firestore {
     }
 
     match /leiloeiros_monitorados/{leiloeiroId} {
-      allow read: if isAdmin();
-      allow create, delete: if isAdmin() && isValidLeiloeiroMonitorado(request.resource.data);
+      allow read, delete: if isAdmin();
+      allow create: if isAdmin() && isValidLeiloeiroMonitorado(request.resource.data);
       allow update: if (isAdmin() && isValidLeiloeiroMonitorado(request.resource.data)) ||
                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['last_sync']);
     }

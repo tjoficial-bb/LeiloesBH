@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import cron from 'node-cron';
@@ -62,6 +63,7 @@ async function runScrapeUpdate(propertyId: string, url: string) {
 
 async function startServer() {
   const app = express();
+  app.use(compression());
   app.use(cors());
   app.use(express.json());
 
@@ -267,7 +269,10 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      maxAge: '1d',
+      etag: true,
+    }));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });

@@ -7,7 +7,8 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { CardImovel } from './components/CardImovel';
 import { Layout } from './components/Layout';
-import { Heart, Filter, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Heart, Filter, ChevronDown, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import Sobre from './Sobre';
 import FAQ from './FAQ';
 import AdminSettings from './AdminSettings';
@@ -19,7 +20,7 @@ import DiscoveryDashboard from './DiscoveryDashboard';
 import { BlogCard } from './components/BlogCard';
 import { db, auth, handleFirestoreError, OperationType } from './firebase';
 import { collection, addDoc, updateDoc, doc, onSnapshot, getDocs, deleteDoc, query, limit, orderBy, getDocFromServer, where, setDoc } from 'firebase/firestore';
-import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User, browserPopupRedirectResolver } from 'firebase/auth';
 import { GoogleGenAI, Type } from "@google/genai";
 
 const ADMIN_EMAIL = 'tjinvestoficial@gmail.com';
@@ -39,6 +40,7 @@ export default function App() {
   const [imoveis, setImoveis] = useState<any[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [testimonials, setTestimonials] = useState<any[]>([]);
+  const [isTestimonialsLoading, setIsTestimonialsLoading] = useState(true);
   const [featuredPosts, setFeaturedPosts] = useState<any[]>([]);
   const carouselRef = useRef<HTMLDivElement>(null);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
@@ -47,6 +49,8 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   
   const [isProcessing, setIsProcessing] = useState<string | boolean>(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [settings, setSettings] = useState<any>({
     siteTitle: 'TJ INVEST - Leilões de Imóveis',
@@ -71,6 +75,12 @@ export default function App() {
     headerOverlayOpacity: 0.5,
     logoUrl: 'https://i.postimg.cc/14q5TzRL/logo.png',
   });
+
+  const settingsRef = useRef(settings);
+  const isUpdatingTicker = useRef(false);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   useEffect(() => {
     async function testConnection() {
@@ -270,8 +280,10 @@ export default function App() {
 
     const unsubTestimonials = onSnapshot(collection(db, 'testimonials'), (snapshot) => {
       setTestimonials(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setIsTestimonialsLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'testimonials');
+      setIsTestimonialsLoading(false);
     });
 
     const unsubPosts = onSnapshot(
@@ -296,18 +308,22 @@ export default function App() {
     if (isSettingsLoading || !settings.showTicker || user?.email !== ADMIN_EMAIL) return;
 
     const updateTicker = async () => {
+      if (isUpdatingTicker.current) return;
+      
+      const currentSettings = settingsRef.current;
       const now = Date.now();
-      const lastUpdate = settings.lastTickerUpdate || 0;
-      const intervalMs = (parseInt(settings.tickerUpdateInterval || '60')) * 60 * 1000;
+      const lastUpdate = currentSettings.lastTickerUpdate || 0;
+      const intervalMs = Math.max(1, parseInt(currentSettings.tickerUpdateInterval || '60')) * 60 * 1000;
 
       if (now - lastUpdate > intervalMs) {
+        isUpdatingTicker.current = true;
         console.log('Atualizando ticker via IA...');
         try {
           const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
           if (!apiKey) return;
 
           const ai = new GoogleGenAI({ apiKey });
-          const prompt = settings.tickerPrompt || 'Gere 10 itens para uma barra de cotações de leilões de imóveis. Misture notícias curtas com notícias mais detalhadas (acima de 20 palavras). Inclua SELIC, IPCA, Dólar, Euro e novidades do mercado. Use um tom profissional.';
+          const prompt = currentSettings.tickerPrompt || 'Gere 10 itens para uma barra de cotações de leilões de imóveis. Misture notícias curtas com notícias mais detalhadas (acima de 20 palavras). Inclua SELIC, IPCA, Dólar, Euro e novidades do mercado. Use um tom profissional.';
           
           const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
@@ -336,7 +352,10 @@ export default function App() {
           });
           console.log('Ticker updated successfully!');
         } catch (error) {
-          handleFirestoreError(error, OperationType.UPDATE, 'settings/site');
+          // If quota is exhausted, we don't want to spam errors
+          console.error('Ticker update error:', error);
+        } finally {
+          isUpdatingTicker.current = false;
         }
       }
     };
@@ -344,7 +363,7 @@ export default function App() {
     updateTicker();
     const interval = setInterval(updateTicker, 5 * 60 * 1000); // Verifica a cada 5 min
     return () => clearInterval(interval);
-  }, [isSettingsLoading, settings.showTicker, settings.tickerUpdateInterval, settings.lastTickerUpdate, user?.email]);
+  }, [isSettingsLoading, settings.showTicker, settings.tickerUpdateInterval, user?.email]);
 
   useEffect(() => {
     if (settings.testimonialStyle === 'carousel' && testimonials.length > 0 && !isCarouselPaused) {
@@ -354,10 +373,10 @@ export default function App() {
           if (scrollLeft + clientWidth >= scrollWidth - 10) {
             carouselRef.current.scrollTo({ left: 0, behavior: 'smooth' });
           } else {
-            carouselRef.current.scrollBy({ left: 500, behavior: 'smooth' });
+            carouselRef.current.scrollBy({ left: 600, behavior: 'smooth' });
           }
         }
-      }, 1000); // Reduced to 1000ms and increased scroll amount for faster scrolling
+      }, 800); // Reduced to 800ms and increased scroll amount for faster scrolling
       return () => clearInterval(interval);
     }
   }, [settings.testimonialStyle, testimonials, isCarouselPaused]);
@@ -376,8 +395,9 @@ export default function App() {
 
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     try {
-      const result = await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
       console.log('Login realizado com sucesso:', result.user.email);
     } catch (error: any) {
       console.error('Erro detalhado no login:', error);
@@ -388,7 +408,7 @@ export default function App() {
       
       let message = 'Erro ao realizar login. Tente novamente.';
       if (error.code === 'auth/unauthorized-domain') {
-        message = 'Este domínio não está autorizado no Firebase. Por favor, adicione "tjinvest.com.br" aos domínios autorizados no Console do Firebase.';
+        message = `Este domínio (${window.location.hostname}) não está autorizado no Firebase.\n\nPor favor, acesse o Console do Firebase > Authentication > Settings (Configurações) > Authorized domains (Domínios autorizados) e adicione o domínio:\n${window.location.hostname}`;
       } else if (error.code === 'auth/popup-blocked') {
         message = 'O popup de login foi bloqueado pelo seu navegador. Por favor, permita popups para este site.';
       } else if (error.message) {
@@ -404,43 +424,64 @@ export default function App() {
     setUser(null);
   };
 
+  const [scrapeProgress, setScrapeProgress] = useState<{ current: number, total: number, url: string } | null>(null);
+
   const handleScrape = async () => {
     console.log('handleScrape chamado. Usuário:', user?.email);
     if (!(user?.email === ADMIN_EMAIL)) {
       console.log('Acesso negado. Usuário não é admin.');
       return;
     }
+    
+    const urlList = url.split('\n').map(u => u.trim()).filter(u => u !== '');
+    if (urlList.length === 0) {
+      alert('Por favor, insira pelo menos um link.');
+      return;
+    }
+
     setIsProcessing('new');
+    setScrapeProgress({ current: 0, total: urlList.length, url: '' });
+    let successCount = 0;
+    let errorCount = 0;
+
     try {
-      console.log('Iniciando fetch para:', `${window.location.origin}/api/scrape`);
-      const response = await fetch(`${window.location.origin}/api/scrape`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
-      });
-      console.log('Fetch concluído. Status:', response.status);
-      const result = await response.json();
-      console.log('Scrape result:', result);
-      if (result.success) {
-        const imovelData = result.data.data || result.data;
-        console.log('Adding to Firestore:', imovelData);
-        await addDoc(collection(db, 'imoveis'), {
-          ...imovelData,
-          addedAt: new Date().toISOString()
-        });
-        console.log('Successfully added to Firestore');
-        setUrl(''); // Clear input
-        alert('Imóvel adicionado com sucesso!');
-      } else if (result.loginRequired) {
-        alert('Login necessário! Clique no link abaixo para logar.');
-        window.open(result.loginUrl, '_blank');
-      } else {
-        alert('Erro ao realizar o scrape.');
+      for (let i = 0; i < urlList.length; i++) {
+        const currentUrl = urlList[i];
+        setScrapeProgress({ current: i + 1, total: urlList.length, url: currentUrl });
+        console.log(`Processando ${i + 1}/${urlList.length}:`, currentUrl);
+        
+        try {
+          const response = await fetch(`${window.location.origin}/api/scrape`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: currentUrl })
+          });
+          
+          const result = await response.json();
+          if (result.success) {
+            const imovelData = result.data.data || result.data;
+            await addDoc(collection(db, 'imoveis'), {
+              ...imovelData,
+              addedAt: new Date().toISOString()
+            });
+            successCount++;
+          } else {
+            console.error(`Erro no scrape da URL ${currentUrl}:`, result.error);
+            errorCount++;
+          }
+        } catch (err) {
+          console.error(`Erro ao processar URL ${currentUrl}:`, err);
+          errorCount++;
+        }
       }
+      
+      setUrl(''); // Clear input
+      alert(`Processamento concluído!\nSucesso: ${successCount}\nErros: ${errorCount}`);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'imoveis');
     } finally {
       setIsProcessing(false);
+      setScrapeProgress(null);
     }
   };
 
@@ -692,20 +733,24 @@ Retorne apenas o texto da análise formatado em Markdown.`;
           {isAdmin && (
             <div className="mb-8 p-6 bg-white rounded-xl shadow-sm border border-stone-100">
               <h2 className="text-xl font-bold mb-4">Painel de Administração</h2>
-              <div className="flex flex-col md:flex-row gap-4">
-                <input 
-                  type="text" 
+              <div className="flex flex-col gap-4">
+                <textarea 
                   value={url} 
                   onChange={(e) => setUrl(e.target.value)} 
-                  placeholder="Cole o link do leilão" 
-                  className="border p-2 rounded w-full"
+                  placeholder="Cole os links dos leilões (um por linha)" 
+                  className="border p-2 rounded w-full h-32 resize-none"
                 />
                 <button 
                   onClick={handleScrape} 
                   disabled={!!isProcessing}
-                  className={`bg-blue-600 text-white px-6 py-2 rounded font-semibold whitespace-nowrap ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`bg-blue-600 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg hover:bg-blue-700 active:scale-95 ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  {isProcessing === 'new' ? 'Processando...' : 'Fazer Scrape'}
+                  {isProcessing === 'new' ? (
+                    <div className="flex flex-col items-center">
+                      <span>Processando {scrapeProgress?.current}/{scrapeProgress?.total}</span>
+                      <span className="text-[10px] font-normal opacity-75 truncate max-w-[200px]">{scrapeProgress?.url}</span>
+                    </div>
+                  ) : 'Fazer Scrape de Todos'}
                 </button>
               </div>
             </div>
@@ -785,20 +830,11 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                     settings={settings}
                     isAdmin={isAdmin}
                     onManualFix={(field) => handleManualFix(imovel.id, field)}
+                    onRefresh={() => handleManualUpdate(imovel.id, imovel.link_original)}
+                    onEdit={() => setEditingImovel(imovel)}
+                    onDelete={() => setShowDeleteConfirm(imovel.id)}
+                    isUpdating={isProcessing === imovel.id}
                   />
-                  {isAdmin && (
-                    <div className="mt-2 flex gap-3 text-sm">
-                      <button onClick={() => setEditingImovel(imovel)} className="text-blue-600 font-medium hover:underline">Editar</button>
-                      <button 
-                        onClick={() => handleManualUpdate(imovel.id, imovel.link_original)} 
-                        disabled={isProcessing === imovel.id}
-                        className={`text-primary font-medium hover:underline ${isProcessing === imovel.id ? 'opacity-50' : ''}`}
-                      >
-                        {isProcessing === imovel.id ? 'Atualizando...' : 'Atualizar'}
-                      </button>
-                      <button onClick={() => handleDelete(imovel.id)} className="text-red-600 font-medium hover:underline">Excluir</button>
-                    </div>
-                  )}
                 </div>
               ))
             ) : (
@@ -808,14 +844,35 @@ Retorne apenas o texto da análise formatado em Markdown.`;
             )}
           </div>
 
-          {settings.showTestimonials !== false && testimonials.length > 0 && (
+          {settings.showTestimonials !== false && (isTestimonialsLoading || testimonials.length > 0) && (
             <div className="mt-24 mb-12">
               <div className="text-center mb-12">
                 <h2 className="text-3xl font-bold text-stone-900 mb-4">O que dizem nossos clientes</h2>
                 <div className="w-20 h-1 bg-primary mx-auto rounded-full"></div>
               </div>
 
-              {settings.testimonialStyle === 'carousel' ? (
+              {isTestimonialsLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="bg-white p-8 rounded-2xl shadow-sm border border-stone-100 animate-pulse">
+                      <div className="flex gap-1 mb-4">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <div key={s} className="w-4 h-4 bg-stone-200 rounded-full"></div>
+                        ))}
+                      </div>
+                      <div className="h-4 bg-stone-200 rounded w-full mb-2"></div>
+                      <div className="h-4 bg-stone-200 rounded w-3/4 mb-6"></div>
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-stone-200 rounded-full"></div>
+                        <div>
+                          <div className="h-4 bg-stone-200 rounded w-24 mb-1"></div>
+                          <div className="h-3 bg-stone-200 rounded w-16"></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : settings.testimonialStyle === 'carousel' ? (
                 <div 
                   className="relative group"
                   onMouseEnter={() => setIsCarouselPaused(true)}
@@ -839,7 +896,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                       >
                         <div className="flex items-center gap-4 mb-6">
                           {t.photoUrl ? (
-                            <img src={t.photoUrl} alt={t.name} className="w-14 h-14 rounded-full object-cover border-2 border-primary/10" referrerPolicy="no-referrer" />
+                            <img src={t.photoUrl} alt={t.name} className="w-14 h-14 rounded-full object-cover border-2 border-primary/10" referrerPolicy="no-referrer" loading="lazy" />
                           ) : (
                             <div className="w-14 h-14 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold text-xl">
                               {t.name.charAt(0)}
@@ -876,7 +933,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                       >
                         <div className="flex items-center gap-3 mb-4">
                           {t.photoUrl ? (
-                            <img src={t.photoUrl} alt={t.name} className="w-10 h-10 rounded-full object-cover border border-stone-100" referrerPolicy="no-referrer" />
+                            <img src={t.photoUrl} alt={t.name} className="w-10 h-10 rounded-full object-cover border border-stone-100" referrerPolicy="no-referrer" loading="lazy" />
                           ) : (
                             <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold text-sm">
                               {t.name.charAt(0)}
@@ -1180,9 +1237,15 @@ Retorne apenas o texto da análise formatado em Markdown.`;
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-stone-700 mb-1">Link do Leilão</label>
+                <label className="block text-sm font-semibold text-stone-700 mb-1">Link do Leilão (Atualização Automática)</label>
                 <input type="text" value={editingImovel.link_original || ''} onChange={(e) => setEditingImovel({...editingImovel, link_original: e.target.value})} className="w-full border border-stone-300 p-2.5 rounded-lg" />
               </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-stone-700 mb-1">Link do Botão (Exibição no Card)</label>
+                <input type="text" value={editingImovel.link_botao || ''} onChange={(e) => setEditingImovel({...editingImovel, link_botao: e.target.value})} className="w-full border border-stone-300 p-2.5 rounded-lg" placeholder="Se vazio, usará o Link do Leilão" />
+              </div>
+
               
               <div className="md:col-span-2">
                 <div className="flex justify-between items-center mb-1">
@@ -1249,6 +1312,48 @@ Retorne apenas o texto da análise formatado em Markdown.`;
         </div>,
         document.body
       )}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+            >
+              <div className="flex items-center gap-3 text-red-600 mb-4">
+                <div className="p-2 bg-red-100 rounded-full">
+                  <AlertCircle size={24} />
+                </div>
+                <h3 className="text-xl font-bold">Confirmar Exclusão</h3>
+              </div>
+              <p className="text-stone-600 mb-6">
+                Tem certeza que deseja excluir este imóvel? Esta ação não pode ser desfeita.
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowDeleteConfirm(null)}
+                  className="flex-1 py-3 px-4 bg-stone-100 text-stone-600 font-bold rounded-xl hover:bg-stone-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={async () => {
+                    setIsDeleting(true);
+                    await handleDelete(showDeleteConfirm);
+                    setIsDeleting(false);
+                    setShowDeleteConfirm(null);
+                  }}
+                  disabled={isDeleting}
+                  className="flex-1 py-3 px-4 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50"
+                >
+                  {isDeleting ? 'Excluindo...' : 'Sim, Excluir'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </Layout>
   );
 }

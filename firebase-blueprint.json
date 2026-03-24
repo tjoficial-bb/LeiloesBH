@@ -22,7 +22,8 @@
         "risco": { "type": "string", "description": "Risk level" },
         "liquidez": { "type": "string", "description": "Liquidity" },
         "lucro_estimado": { "type": "number", "description": "Estimated profit" },
-        "link_original": { "type": "string", "description": "Original auction link" }
+        "link_original": { "type": "string", "description": "Original auction link" },
+        "link_botao": { "type": "string", "description": "Link for the button in the card" }
       },
       "required": ["titulo", "link_original"]
     },

@@ -11,12 +11,16 @@
   --color-primary-dark: var(--primary-dark-color, #059669);
   --color-primary-light: var(--primary-light-color, #34d399);
 
-  --animate-marquee: marquee 5s linear infinite;
+  --animate-marquee: marquee 4s linear infinite;
   
   @keyframes marquee {
     0% { transform: translateX(0%); }
     100% { transform: translateX(-50%); }
   }
+}
+
+.animate-marquee {
+  will-change: transform;
 }
 
 @layer base {
