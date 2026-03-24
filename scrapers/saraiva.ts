@@ -37,24 +37,27 @@ export class SaraivaScraper implements Scraper {
             return keywords.some(k => text.toLowerCase().includes(k.toLowerCase())) && text.length < 100 && el.children.length === 0;
           });
           
+          let foundData = '';
+          let foundValor = '';
+
           for (const el of elements) {
             let current = el;
-            let foundData = '';
-            let foundValor = '';
             
-            // Busca em até 10 níveis de parentesco
-            for (let i = 0; i < 10; i++) {
+            // Busca em até 12 níveis de parentesco (mais profundo)
+            for (let i = 0; i < 12; i++) {
               if (!current) break;
               const parentText = current.innerText || current.textContent || '';
               
               if (!foundData) {
-                const matchData = parentText.match(/(\d{2}[\/\.]\d{2}[\/\.]\d{2,4})/);
+                // Regex melhorado para datas (DD/MM/AAAA, DD.MM.AAAA, DD/MM/AA, etc)
+                const matchData = parentText.match(/(\d{1,2}[\/\.]\d{1,2}[\/\.]\d{2,4}(?:\s+\d{2}:\d{2})?)/);
                 if (matchData) foundData = matchData[1];
               }
               
               if (!foundValor) {
-                const matchValor = parentText.match(/(R\$\s*[\d\.,]+)/i);
-                if (matchValor) foundValor = matchValor[1];
+                // Regex melhorado para valores (R$ 1.234,56, 1.234,56, etc)
+                const matchValor = parentText.match(/(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+                if (matchValor) foundValor = 'R$ ' + matchValor[1];
               }
               
               if (foundData && foundValor) return { data: foundData, valor: foundValor };
@@ -66,13 +69,13 @@ export class SaraivaScraper implements Scraper {
                 const siblingText = sibling.innerText || sibling.textContent || '';
                 
                 if (!foundData) {
-                  const matchData = siblingText.match(/(\d{2}[\/\.]\d{2}[\/\.]\d{2,4})/);
+                  const matchData = siblingText.match(/(\d{1,2}[\/\.]\d{1,2}[\/\.]\d{2,4}(?:\s+\d{2}:\d{2})?)/);
                   if (matchData) foundData = matchData[1];
                 }
                 
                 if (!foundValor) {
-                  const matchValor = siblingText.match(/(R\$\s*[\d\.,]+)/i);
-                  if (matchValor) foundValor = matchValor[1];
+                  const matchValor = siblingText.match(/(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+                  if (matchValor) foundValor = 'R$ ' + matchValor[1];
                 }
                 
                 if (foundData && foundValor) return { data: foundData, valor: foundValor };
@@ -80,9 +83,27 @@ export class SaraivaScraper implements Scraper {
               
               current = current.parentElement;
             }
-            if (foundData || foundValor) return { data: foundData, valor: foundValor };
           }
-          return { data: '', valor: '' };
+
+          // Fallback: Busca global se não encontrou nada específico perto dos elementos
+          if (!foundData || !foundValor) {
+            const bodyText = document.body.innerText || '';
+            const lines = bodyText.split('\n');
+            for (const line of lines) {
+              if (keywords.some(k => line.toLowerCase().includes(k.toLowerCase()))) {
+                if (!foundData) {
+                  const matchData = line.match(/(\d{1,2}[\/\.]\d{1,2}[\/\.]\d{2,4}(?:\s+\d{2}:\d{2})?)/);
+                  if (matchData) foundData = matchData[1];
+                }
+                if (!foundValor) {
+                  const matchValor = line.match(/(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+                  if (matchValor) foundValor = 'R$ ' + matchValor[1];
+                }
+              }
+            }
+          }
+
+          return { data: foundData, valor: foundValor };
         };
 
         const extractValueByKeyword = (keywords) => {
@@ -112,8 +133,8 @@ export class SaraivaScraper implements Scraper {
           return '';
         };
 
-        const p1 = extractPracaInfo(['1ª Praça', '1º Leilão', '1ª Praca', '1º Leilao', 'Primeira Praça', 'Primeiro Leilão', '1º Ciclo', '1ª Data', '1º Encerramento', '1º Praça', '1ª Leilão']);
-        const p2 = extractPracaInfo(['2ª Praça', '2º Leilão', '2ª Praca', '2º Leilao', 'Segunda Praça', 'Segundo Leilão', '2º Ciclo', '2ª Data', '2º Encerramento', '2º Praça', '2ª Leilão']);
+        const p1 = extractPracaInfo(['1ª Praça', '1º Leilão', '1ª Praca', '1º Leilao', 'Primeira Praça', 'Primeiro Leilão', '1º Ciclo', '1ª Data', '1º Encerramento', '1º Praça', '1ª Leilão', '1ª Etapa', '1º Período', 'Data 1']);
+        const p2 = extractPracaInfo(['2ª Praça', '2º Leilão', '2ª Praca', '2º Leilao', 'Segunda Praça', 'Segundo Leilão', '2º Ciclo', '2ª Data', '2º Encerramento', '2º Praça', '2ª Leilão', '2ª Etapa', '2º Período', 'Data 2']);
         
         let valor_avaliacao = getElementText('.valor-avaliacao') || extractValueByKeyword(['Avaliação', 'Valor de Avaliação', 'Avaliado em', 'Valor do Imóvel', 'Valor de Mercado', 'Preço de Avaliação']) || '0';
         let preco_leilao = getElementText('.preco-leilao') || getElementText('.lot-price') || getElementText('.price') || extractValueByKeyword(['Lance Mínimo', 'Lance Inicial', 'Valor Mínimo', 'Preço Mínimo', 'Valor de Venda', 'Lance Atual']) || '0';
@@ -133,7 +154,7 @@ export class SaraivaScraper implements Scraper {
           descricao: getElementText('.descricao-lote') || getElementText('.lot-description') || getElementText('.description') || '',
           preco_leilao: preco_leilao,
           endereco: getElementText('.endereco-lote') || getElementText('.lot-address') || getElementText('.address') || 'Endereço não encontrado',
-          imagem: getElementAttr('img.img-lote', 'src') || getElementAttr('.lot-image img', 'src') || getElementAttr('img', 'src') || '',
+          imagem_url: getElementAttr('img.img-lote', 'src') || getElementAttr('.lot-image img', 'src') || getElementAttr('img', 'src') || '',
           primeira_praca_data: p1.data || getElementText('.primeira-praca-data') || '',
           primeira_praca_valor: primeira_praca_valor,
           segunda_praca_data: p2.data || getElementText('.segunda-praca-data') || '',

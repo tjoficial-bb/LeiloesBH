@@ -395,14 +395,25 @@ export default function App() {
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      console.log('Login realizado com sucesso:', result.user.email);
     } catch (error: any) {
+      console.error('Erro detalhado no login:', error);
       if (error.code === 'auth/popup-closed-by-user') {
         console.log('Login cancelado pelo usuário.');
-      } else {
-        console.error('Erro no login:', error);
-        alert('Erro ao realizar login. Tente novamente.');
+        return;
       }
+      
+      let message = 'Erro ao realizar login. Tente novamente.';
+      if (error.code === 'auth/unauthorized-domain') {
+        message = 'Este domínio não está autorizado no Firebase. Por favor, adicione "tjinvest.com.br" aos domínios autorizados no Console do Firebase.';
+      } else if (error.code === 'auth/popup-blocked') {
+        message = 'O popup de login foi bloqueado pelo seu navegador. Por favor, permita popups para este site.';
+      } else if (error.message) {
+        message = `Erro: ${error.message}`;
+      }
+      
+      alert(message);
     }
   };
 
@@ -489,21 +500,32 @@ export default function App() {
       }
       
       const ai = new GoogleGenAI({ apiKey });
-      const prompt = `Você é um especialista em leilões de imóveis da TJ Invest. 
-Analise os dados do imóvel abaixo e escreva uma análise persuasiva, profissional e técnica para um investidor. 
-Destaque os pontos positivos (localização, potencial de valorização, desconto em relação ao mercado) e mencione brevemente os cuidados necessários.
+      const prompt = `Você é um especialista sênior em leilões de imóveis da TJ Invest. 
+Sua tarefa é realizar uma análise técnica e estratégica profunda do imóvel abaixo para um investidor de alto padrão.
 
-Use uma formatação agradável:
-- Use marcadores (•) para listas.
-- Use negrito (**) para termos importantes.
-- Use emojis de forma moderada (máximo 3 em todo o texto).
-- Divida em parágrafos curtos.
-- O tom deve ser de um consultor sênior falando com um cliente VIP.
+IMPORTANTE: A ANÁLISE DEVE SER ESCRITA EXCLUSIVAMENTE EM PORTUGUÊS DO BRASIL.
+
+ESTRUTURA OBRIGATÓRIA DA RESPOSTA:
+
+1. **RESUMO EXECUTIVO**: Um parágrafo impactante sobre a oportunidade.
+2. **SCORE DE OPORTUNIDADE (0-10)**: 
+   - Atribua uma nota de 0 a 10.
+   - EXPLIQUE detalhadamente por que essa nota foi dada (considere ROI, localização, liquidez e risco).
+   - Use uma linguagem clara: "Este imóvel recebe nota X porque..."
+3. **PONTOS FORTES**: Use marcadores (•) para destacar localização, potencial de valorização e margem de segurança.
+4. **ANÁLISE DE RISCO**: Mencione os cuidados jurídicos e operacionais necessários de forma profissional.
+5. **ESTRATÉGIA DE SAÍDA**: Sugira se é melhor para revenda rápida, aluguel ou uso próprio.
+
+DIRETRIZES DE FORMATAÇÃO:
+- Use **negrito** para termos e valores cruciais.
+- Use parágrafos curtos e bem espaçados.
+- Use emojis de forma muito moderada (máximo 3 em todo o texto).
+- O tom deve ser autoritário, mas acessível, como um consultor sênior falando com um cliente VIP.
 
 Dados do imóvel:
 ${JSON.stringify(editingImovel, null, 2)}
 
-Retorne apenas o texto da análise.`;
+Retorne apenas o texto da análise formatado em Markdown.`;
 
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",

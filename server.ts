@@ -32,10 +32,19 @@ async function runScrapeUpdate(propertyId: string, url: string) {
     if (result.success !== false) {
       const data = result.data || result;
       console.log(`[Cron] Dados a serem atualizados para ${propertyId}:`, JSON.stringify(data, null, 2));
-      await updateDoc(doc(firestore, 'imoveis', propertyId), {
-        ...data,
+      
+      // Filtrar campos vazios para não sobrescrever dados existentes que podem ter sido inseridos manualmente
+      const updatePayload: any = {
         last_updated: new Date().toISOString()
+      };
+      
+      Object.keys(data).forEach(key => {
+        if (data[key] !== undefined && data[key] !== null && data[key] !== '') {
+          updatePayload[key] = data[key];
+        }
       });
+
+      await updateDoc(doc(firestore, 'imoveis', propertyId), updatePayload);
       console.log(`[Cron] Imóvel ${propertyId} atualizado com sucesso.`);
     } else {
       console.log(`[Cron] Scrape falhou ou requer login para ${propertyId}:`, result);

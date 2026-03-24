@@ -97,7 +97,22 @@ export const CardImovel = memo(({
 
   const roiOriginal = lanceMinimoOriginal > 0 ? ((avaliacaoOriginal - lanceMinimoOriginal) / lanceMinimoOriginal * 100).toFixed(1) : '0';
 
-  const isFirstPracaPassed = typeof imovel.primeira_praca_data === 'string' ? new Date(imovel.primeira_praca_data.split(' ')[0].split('/').reverse().join('-')) < new Date() : false;
+  const isFirstPracaPassed = useMemo(() => {
+    if (typeof imovel.primeira_praca_data !== 'string' || !imovel.primeira_praca_data) return false;
+    try {
+      // Tenta extrair a data no formato DD/MM/AAAA ou DD.MM.AAAA
+      const dateMatch = imovel.primeira_praca_data.match(/(\d{1,2})[\/\.](\d{1,2})[\/\.](\d{2,4})/);
+      if (!dateMatch) return false;
+      
+      const [_, day, month, year] = dateMatch;
+      const fullYear = year.length === 2 ? `20${year}` : year;
+      const dateObj = new Date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+      
+      return !isNaN(dateObj.getTime()) && dateObj < new Date();
+    } catch (e) {
+      return false;
+    }
+  }, [imovel.primeira_praca_data]);
 
   const getRiscoColor = (risco: string) => {
     switch (risco?.toLowerCase()) {
@@ -179,11 +194,18 @@ export const CardImovel = memo(({
     else if (risco === 'médio') riscoScore = 10;
     else if (risco === 'alto') riscoScore = 5;
 
+    const totalScore = roiScore + descScore + tipoScore + riscoScore;
+    const summary = totalScore >= 80 ? "Excelente oportunidade com alta margem e baixo risco." :
+                    totalScore >= 60 ? "Boa oportunidade, requer análise detalhada dos custos." :
+                    totalScore >= 40 ? "Oportunidade média, margem de lucro reduzida." :
+                    "Oportunidade de alto risco ou baixa rentabilidade.";
+
     return {
       roi: { val: roi.toFixed(1) + '%', score: roiScore, max: 40 },
       desconto: { val: descontoPercent.toFixed(1) + '%', score: descScore, max: 30 },
       tipo: { val: imovel.tipo || 'N/A', score: tipoScore, max: 15 },
-      risco: { val: imovel.risco || 'Médio', score: riscoScore, max: 15 }
+      risco: { val: imovel.risco || 'Médio', score: riscoScore, max: 15 },
+      summary
     };
   }, [roiOriginal, imovel.valor_avaliacao, imovel.preco_leilao, imovel.tipo, imovel.risco]);
 
@@ -227,58 +249,58 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
         </div>
 
         <div className="absolute bottom-3 right-3 group">
-          <div className="bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-sm border border-stone-100 flex items-center gap-2 cursor-help transition-all hover:bg-white hover:shadow-md">
-            <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Score</span>
-            <span className={`text-sm font-black ${opportunityScore >= 8 ? 'text-primary' : opportunityScore >= 6 ? 'text-amber-500' : 'text-stone-500'}`}>
+          <div className="bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-full shadow-sm border border-stone-100 flex items-center gap-2 cursor-help transition-all hover:bg-white hover:shadow-lg hover:scale-105 active:scale-95">
+            <span className="text-[9px] font-black text-stone-400 uppercase tracking-[0.2em]">Score</span>
+            <span className={`text-sm font-black ${opportunityScore >= 8 ? 'text-emerald-600' : opportunityScore >= 6 ? 'text-amber-500' : 'text-stone-500'}`}>
               {opportunityScore}/10
             </span>
           </div>
 
           {/* Tooltip Breakdown */}
-          <div className="absolute bottom-full right-0 mb-2 w-56 bg-white rounded-2xl shadow-2xl border border-stone-100 p-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 transform translate-y-2 group-hover:translate-y-0">
-            <div className="flex items-center gap-2 mb-3 pb-2 border-bottom border-stone-50">
-              <ShieldCheck size={16} className="text-primary" />
-              <h4 className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Análise de Oportunidade</h4>
+          <div className="absolute bottom-full right-0 mb-3 w-64 bg-white rounded-2xl shadow-2xl border border-stone-100 p-5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 transform translate-y-2 group-hover:translate-y-0">
+            {/* Arrow */}
+            <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-white border-r border-b border-stone-100 transform rotate-45"></div>
+
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-stone-50">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={14} className="text-emerald-600" />
+                <h4 className="text-[10px] font-black text-stone-400 uppercase tracking-[0.15em]">Análise TJ Invest</h4>
+              </div>
+              <span className={`text-xs font-black px-2 py-0.5 rounded-md ${opportunityScore >= 8 ? 'bg-emerald-50 text-emerald-700' : opportunityScore >= 6 ? 'bg-amber-50 text-amber-700' : 'bg-stone-50 text-stone-700'}`}>
+                {opportunityScore}/10
+              </span>
             </div>
             
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-stone-700">Rentabilidade (ROI)</span>
-                  <span className="text-[9px] text-stone-400">{scoreBreakdown.roi.val}</span>
+            <div className="space-y-4">
+              {[
+                { label: 'Rentabilidade (ROI)', val: scoreBreakdown.roi.val, score: scoreBreakdown.roi.score, max: scoreBreakdown.roi.max },
+                { label: 'Margem de Desconto', val: scoreBreakdown.desconto.val, score: scoreBreakdown.desconto.score, max: scoreBreakdown.desconto.max },
+                { label: 'Liquidez (Tipo)', val: scoreBreakdown.tipo.val, score: scoreBreakdown.tipo.score, max: scoreBreakdown.tipo.max },
+                { label: 'Segurança (Risco)', val: scoreBreakdown.risco.val, score: scoreBreakdown.risco.score, max: scoreBreakdown.risco.max }
+              ].map((item, idx) => (
+                <div key={idx} className="flex justify-between items-start group/item">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[11px] font-bold text-stone-800 leading-none">{item.label}</span>
+                    <span className="text-[9px] text-stone-400 font-medium">{item.val}</span>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-[11px] font-black text-stone-900">{item.score}<span className="text-stone-300 font-medium">/{item.max}</span></span>
+                    <div className="w-12 h-1 bg-stone-50 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-500 ${item.score / item.max >= 0.8 ? 'bg-emerald-500' : item.score / item.max >= 0.5 ? 'bg-amber-400' : 'bg-stone-300'}`}
+                        style={{ width: `${(item.score / item.max) * 100}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <span className="text-xs font-black text-stone-900">{scoreBreakdown.roi.score}/{scoreBreakdown.roi.max}</span>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-stone-700">Margem de Desconto</span>
-                  <span className="text-[9px] text-stone-400">{scoreBreakdown.desconto.val}</span>
-                </div>
-                <span className="text-xs font-black text-stone-900">{scoreBreakdown.desconto.score}/{scoreBreakdown.desconto.max}</span>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-stone-700">Liquidez (Tipo)</span>
-                  <span className="text-[9px] text-stone-400">{scoreBreakdown.tipo.val}</span>
-                </div>
-                <span className="text-xs font-black text-stone-900">{scoreBreakdown.tipo.score}/{scoreBreakdown.tipo.max}</span>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-stone-700">Segurança (Risco)</span>
-                  <span className="text-[9px] text-stone-400">{scoreBreakdown.risco.val}</span>
-                </div>
-                <span className="text-xs font-black text-stone-900">{scoreBreakdown.risco.score}/{scoreBreakdown.risco.max}</span>
-              </div>
+              ))}
             </div>
 
-            <div className="mt-4 pt-3 border-t border-stone-50">
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] font-black text-stone-400 uppercase">Total</span>
-                <span className="text-sm font-black text-primary">{opportunityScore}/10</span>
+            <div className="mt-5 pt-4 border-t border-stone-100">
+              <div className="bg-stone-50/50 rounded-xl p-3 border border-stone-100/50">
+                <p className="text-[10px] text-stone-600 leading-relaxed font-medium italic text-center">
+                  "{scoreBreakdown.summary}"
+                </p>
               </div>
             </div>
           </div>

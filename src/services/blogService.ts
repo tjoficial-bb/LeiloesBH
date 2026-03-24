@@ -83,6 +83,8 @@ export const generateBlogContent = async (topic: string, keywords: string[] = []
   const prompt = `Você é um Redator Sênior e Especialista em SEO (Search Engine Optimization) com 15 anos de experiência no mercado imobiliário e jurídico brasileiro.
 Sua tarefa é escrever um artigo de blog EXCEPCIONAL, com tom profissional, autoritário e informativo.
 
+IMPORTANTE: O ARTIGO DEVE SER ESCRITO EXCLUSIVAMENTE EM PORTUGUÊS DO BRASIL.
+
 TÓPICO: "${topic}"
 PALAVRAS-CHAVE OBRIGATÓRIAS (use-as estrategicamente): ${keywords.join(', ')}
 TAMANHO ALVO: MÍNIMO de ${wordCount} palavras. É CRÍTICO que o texto seja longo, profundo e detalhado para ultrapassar este limite. Se o alvo for ${wordCount}, escreva pelo menos ${Math.round(wordCount * 1.1)} palavras para garantir a meta.
@@ -143,6 +145,9 @@ export const generateBlogTitle = async (topic: string, keywords: string[] = []) 
   const prompt = `Gere 1 título otimizado para SEO sobre o tópico: "${topic}". 
 Palavras-chave: ${keywords.join(', ')}.
 O título deve ser atraente para cliques e conter a palavra-chave principal.
+
+IMPORTANTE: O TÍTULO DEVE SER EM PORTUGUÊS DO BRASIL.
+
 Retorne APENAS o título em texto puro.`;
 
   const response = await ai.models.generateContent({
@@ -159,6 +164,9 @@ export const generateSuggestedTopics = async (count: number = 10) => {
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const prompt = `Gere ${count} sugestões de tópicos altamente relevantes e atraentes para um blog de assessoria em leilões de imóveis (TJ INVEST).
 Os tópicos devem cobrir leilões judiciais, extrajudiciais, dicas jurídicas, investimentos e segurança na arrematação.
+
+IMPORTANTE: AS SUGESTÕES DEVEM SER EM PORTUGUÊS DO BRASIL.
+
 Retorne APENAS um array JSON de strings. Exemplo: ["Tópico 1", "Tópico 2"]`;
 
   const response = await ai.models.generateContent({

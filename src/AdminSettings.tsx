@@ -91,7 +91,7 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
     showTestimonials: true,
     testimonialStyle: 'grid',
     tickerUpdateInterval: '60',
-    tickerPrompt: 'Gere 10 itens para uma barra de cotações de leilões de imóveis. Misture notícias curtas com notícias mais detalhadas (acima de 20 palavras). Inclua variações de SELIC, IPCA, Dólar, Euro e novidades do mercado de leilões no Brasil. Use um tom profissional.',
+    tickerPrompt: 'Gere 10 itens para uma barra de cotações de leilões de imóveis. Misture notícias curtas com notícias mais detalhadas (acima de 20 palavras). Inclua variações de SELIC, IPCA, Dólar, Euro e novidades do mercado de leilões no Brasil. Use um tom profissional. IMPORTANTE: TODAS AS RESPOSTAS DEVEM SER EM PORTUGUÊS DO BRASIL.',
     seoKeywords: '',
     ogImage: '',
     faviconUrl: '',
@@ -235,7 +235,7 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `Gere um depoimento curto e convincente (máximo 200 caracteres) em português para um site de assessoria em leilões de imóveis. O nome do cliente é ${currentName} e seu papel é ${currentRole}. O tom deve ser profissional e de satisfação com o lucro obtido.`,
+        contents: `Gere um depoimento curto e convincente (máximo 200 caracteres) em português do Brasil para um site de assessoria em leilões de imóveis. O nome do cliente é ${currentName} e seu papel é ${currentRole}. O tom deve ser profissional e de satisfação com o lucro obtido. IMPORTANTE: A RESPOSTA DEVE SER EXCLUSIVAMENTE EM PORTUGUÊS DO BRASIL.`,
       });
       const newText = response.text.trim().replace(/^"|"$/g, '');
       
@@ -309,6 +309,7 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
         contents: `Gere uma lista de 30 a 40 palavras-chave de SEO altamente relevantes e estratégicas para um site de assessoria em leilões de imóveis chamado "${settings.siteTitle}". 
         Descrição do site: "${settings.siteDescription}". 
         Inclua termos como "leilão de imóveis", "arrematação", "investimento imobiliário", "leilão judicial", "leilão extrajudicial", "oportunidade", "lucratividade", "segurança jurídica", e variações regionais ou específicas do nicho.
+        IMPORTANTE: AS PALAVRAS-CHAVE DEVEM SER EM PORTUGUÊS DO BRASIL.
         Retorne APENAS as palavras-chave separadas por vírgula, em uma única linha, sem numeração, sem explicações e sem introduções.`,
       });
       

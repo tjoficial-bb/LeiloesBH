@@ -35,7 +35,11 @@ export default function DiscoveryDashboard({ onAddProperty }: { onAddProperty: (
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const prompt = `
+        Você é um assistente de busca de leilões de imóveis. 
         Encontre leilões de imóveis reais e ativos em ${filters.city || 'Brasil'}.
+        
+        IMPORTANTE: TODAS AS RESPOSTAS DEVEM SER EM PORTUGUÊS DO BRASIL.
+        
         Filtros:
         - Tipo: ${filters.type === 'all' ? 'Judicial e Extrajudicial' : filters.type}
         - Banco/Comitente: ${filters.bank === 'all' ? 'Qualquer' : filters.bank}
@@ -43,8 +47,8 @@ export default function DiscoveryDashboard({ onAddProperty }: { onAddProperty: (
         
         Procure nos principais sites de leiloeiros (ex: Auket, Saraiva, Zuk, Mega Leilões, etc).
         Retorne uma lista de imóveis encontrados com:
-        - titulo
-        - endereco
+        - titulo (em português)
+        - endereco (em português)
         - preco (lance mínimo)
         - avaliacao
         - desconto (calculado ou informado)
