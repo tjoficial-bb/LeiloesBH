@@ -163,7 +163,7 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
         await window.aistudio.openSelectKey();
       }
 
-      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
       if (!apiKey) throw new Error("Chave de API não encontrada.");
       
       const ai = new GoogleGenAI({ apiKey });
@@ -235,7 +235,7 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
 
   const regenerateText = async (id: string, currentName: string, currentRole: string) => {
     try {
-      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
       if (!apiKey) {
         throw new Error("Chave de API não encontrada. Verifique as configurações de Secrets.");
       }
@@ -324,7 +324,7 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
   const generateKeywords = async () => {
     try {
       setIsGeneratingKeywords(true);
-      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
       if (!apiKey) throw new Error("Chave de API não encontrada.");
       
       const ai = new GoogleGenAI({ apiKey });

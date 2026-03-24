@@ -62,10 +62,9 @@ export const BLOG_CATEGORIES = [
   "Mercado Imobiliário"
 ];
 
-const API_KEY = process.env.GEMINI_API_KEY || process.env.API_KEY;
-
 export const generateBlogContent = async (topic: string, keywords: string[] = [], wordCount: number = 1000) => {
-  if (!API_KEY) throw new Error("API Key not found");
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("API Key not found");
 
   // Buscar posts existentes para links internos
   let existingPosts: { title: any; slug: any; }[] = [];
@@ -79,7 +78,7 @@ export const generateBlogContent = async (topic: string, keywords: string[] = []
     handleFirestoreError(error, OperationType.GET, 'posts');
   }
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
   const prompt = `Você é um Redator Sênior e Especialista em SEO (Search Engine Optimization) com 15 anos de experiência no mercado imobiliário e jurídico brasileiro.
 Sua tarefa é escrever um artigo de blog EXCEPCIONAL, com tom profissional, autoritário e informativo.
 
@@ -139,9 +138,10 @@ Retorne APENAS um objeto JSON válido seguindo exatamente este esquema:
 };
 
 export const generateBlogTitle = async (topic: string, keywords: string[] = []) => {
-  if (!API_KEY) throw new Error("API Key not found");
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("API Key not found");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
   const prompt = `Gere 1 título otimizado para SEO sobre o tópico: "${topic}". 
 Palavras-chave: ${keywords.join(', ')}.
 O título deve ser atraente para cliques e conter a palavra-chave principal.
@@ -159,9 +159,10 @@ Retorne APENAS o título em texto puro.`;
 };
 
 export const generateSuggestedTopics = async (count: number = 10) => {
-  if (!API_KEY) throw new Error("API Key not found");
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("API Key not found");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
   const prompt = `Gere ${count} sugestões de tópicos altamente relevantes e atraentes para um blog de assessoria em leilões de imóveis (TJ INVEST).
 Os tópicos devem cobrir leilões judiciais, extrajudiciais, dicas jurídicas, investimentos e segurança na arrematação.
 
@@ -186,14 +187,15 @@ Retorne APENAS um array JSON de strings. Exemplo: ["Tópico 1", "Tópico 2"]`;
 };
 
 export const generateBlogImage = async (prompt: string, withText: boolean = false, style: string = 'Fotografia realista', customPrompt?: string) => {
-  if (!API_KEY) throw new Error("API Key not found");
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("API Key not found");
 
   const finalPrompt = customPrompt || prompt;
   const textInstruction = withText 
     ? `Inclua o título "${prompt}" de forma legível e elegante na imagem, usando tipografia moderna e profissional.` 
     : "NÃO inclua nenhum texto, palavras ou letras na imagem. A imagem deve ser puramente visual.";
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-image',
     contents: {

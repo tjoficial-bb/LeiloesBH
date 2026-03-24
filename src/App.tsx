@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom';
 import { CardImovel } from './components/CardImovel';
 import { Layout } from './components/Layout';
 import { motion } from 'motion/react';
-import { Heart } from 'lucide-react';
+import { Heart, Filter, ChevronDown } from 'lucide-react';
 import Sobre from './Sobre';
 import FAQ from './FAQ';
 import AdminSettings from './AdminSettings';
@@ -302,7 +302,7 @@ export default function App() {
       if (now - lastUpdate > intervalMs) {
         console.log('Atualizando ticker via IA...');
         try {
-          const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+          const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
           if (!apiKey) return;
 
           const ai = new GoogleGenAI({ apiKey });
@@ -465,7 +465,7 @@ export default function App() {
     if (!editingImovel) return;
     setIsGeneratingAnalysis(true);
     try {
-      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
       if (!apiKey) {
         throw new Error("Chave de API do Gemini não encontrada. Verifique se ela está configurada no menu 'Secrets'.");
       }
@@ -632,6 +632,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
   const [filtroDescontoMin, setFiltroDescontoMin] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroFavoritos, setFiltroFavoritos] = useState(false);
+  const [showFiltersMobile, setShowFiltersMobile] = useState(false);
 
   const imoveisFiltrados = useMemo(() => {
     if (!Array.isArray(imoveis)) return [];
@@ -670,17 +671,6 @@ Retorne apenas o texto da análise formatado em Markdown.`;
     window.scrollTo(0, 0);
   };
 
-  if (isSettingsLoading) {
-    return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-stone-500 font-medium animate-pulse">Carregando TJ INVEST...</p>
-        </div>
-      </div>
-    );
-  }
-
   // ... (dentro do return)
   return (
     <Layout user={user} onLogin={handleLogin} onLogout={handleLogout} onNavigate={navigate} settings={settings}>
@@ -708,7 +698,20 @@ Retorne apenas o texto da análise formatado em Markdown.`;
             </div>
           )}
           
-          <div className="mb-8 bg-white p-6 rounded-xl shadow-sm border border-stone-100 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="mb-4 md:hidden">
+            <button
+              onClick={() => setShowFiltersMobile(!showFiltersMobile)}
+              className="w-full bg-white border border-stone-200 p-3 rounded-xl flex items-center justify-between font-medium text-stone-700 shadow-sm"
+            >
+              <div className="flex items-center gap-2">
+                <Filter size={18} />
+                Filtros e Busca
+              </div>
+              <ChevronDown size={18} className={`transition-transform ${showFiltersMobile ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+
+          <div className={`mb-8 bg-white p-6 rounded-xl shadow-sm border border-stone-100 grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 ${showFiltersMobile ? 'grid' : 'hidden md:grid'}`}>
             <input type="text" placeholder="Título..." value={filtroTitulo} onChange={e => setFiltroTitulo(e.target.value)} className="border p-2 rounded text-sm" />
             <input type="text" placeholder="Cidade/Endereço..." value={filtroCidade} onChange={e => setFiltroCidade(e.target.value)} className="border p-2 rounded text-sm" />
             <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)} className="border p-2 rounded text-sm">

@@ -203,11 +203,25 @@ export default function AdminBlog() {
     if (!currentPost.title) return alert("Por favor, informe um título para o artigo primeiro.");
     setIsGeneratingImage(true);
     try {
+      // Check for API key selection if using advanced models
+      if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
+        await window.aistudio.openSelectKey();
+      }
+
       const imageUrl = await generateBlogImage(currentPost.title, imageWithText, imageStyle, imagePrompt);
       setCurrentPost({ ...currentPost, imageUrl });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro na geração de imagem:", error);
-      alert("Erro ao gerar imagem com IA.");
+      
+      let errorMessage = "Erro ao gerar imagem com IA.";
+      if (error.message?.includes("RESOURCE_EXHAUSTED") || error.status === "RESOURCE_EXHAUSTED" || error.code === 429) {
+        errorMessage = "Cota de geração de imagem esgotada. Por favor, selecione uma chave de API com faturamento ativo.";
+        if (window.aistudio) {
+          window.aistudio.openSelectKey();
+        }
+      }
+      
+      alert(errorMessage);
     } finally {
       setIsGeneratingImage(false);
     }

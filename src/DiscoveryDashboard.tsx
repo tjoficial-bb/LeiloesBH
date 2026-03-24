@@ -47,7 +47,9 @@ export default function DiscoveryDashboard({ onAddProperty }: { onAddProperty: (
   const handleSearch = async () => {
     setIsSearching(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) throw new Error("API Key not found");
+      const ai = new GoogleGenAI({ apiKey });
       
       const trustedNames = trustedAuctioneers.slice(0, 20).map(l => l.nome).join(', ');
       
@@ -128,7 +130,9 @@ export default function DiscoveryDashboard({ onAddProperty }: { onAddProperty: (
       
       if (!name) {
         // Usar Gemini para identificar o nome do leiloeiro pela URL
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+        if (!apiKey) throw new Error("API Key not found");
+        const ai = new GoogleGenAI({ apiKey });
         const response = await ai.models.generateContent({
           model: "gemini-3-flash-preview",
           contents: `Qual o nome do leiloeiro deste site: ${url}? Retorne apenas o nome curto.`
