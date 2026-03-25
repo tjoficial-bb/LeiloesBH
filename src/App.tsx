@@ -393,10 +393,10 @@ export default function App() {
           if (scrollLeft + clientWidth >= scrollWidth - 10) {
             carouselRef.current.scrollTo({ left: 0, behavior: 'smooth' });
           } else {
-            carouselRef.current.scrollBy({ left: 600, behavior: 'smooth' });
+            carouselRef.current.scrollBy({ left: 350, behavior: 'smooth' });
           }
         }
-      }, 800); // Reduced to 800ms and increased scroll amount for faster scrolling
+      }, 3000); // 3 seconds per slide
       return () => clearInterval(interval);
     }
   }, [settings.testimonialStyle, testimonials, isCarouselPaused]);
@@ -1034,7 +1034,10 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                 </div>
               ) : settings.testimonialStyle === 'marquee' ? (
                 <div className="relative overflow-hidden py-4">
-                  <div className="flex gap-6 animate-marquee whitespace-nowrap">
+                  <div 
+                    className="flex w-max gap-6 animate-marquee whitespace-nowrap"
+                    style={{ animationDuration: `${Math.max(testimonials.length * 4, 10)}s` }}
+                  >
                     {[...testimonials, ...testimonials].map((t, i) => (
                       <div 
                         key={`${t.id}-${i}`}
