@@ -3,7 +3,7 @@ import { collection, onSnapshot, query, where, orderBy, limit } from 'firebase/f
 import { db } from './firebase';
 import { BlogCard } from './components/BlogCard';
 import { BlogPost } from './services/blogService';
-import { Search, Filter, Calendar, User, ArrowRight } from 'lucide-react';
+import { Search, Filter, Calendar, User, ArrowRight, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function BlogList({ onNavigate }: { onNavigate: (path: string) => void }) {
@@ -11,6 +11,7 @@ export default function BlogList({ onNavigate }: { onNavigate: (path: string) =>
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [showFiltersMobile, setShowFiltersMobile] = useState(false);
 
   useEffect(() => {
     const q = query(
@@ -39,8 +40,22 @@ export default function BlogList({ onNavigate }: { onNavigate: (path: string) =>
 
   return (
     <div className="max-w-7xl mx-auto py-12 px-4 md:px-8">
+      {/* Mobile Filter Toggle */}
+      <div className="mb-6 md:hidden">
+        <button
+          onClick={() => setShowFiltersMobile(!showFiltersMobile)}
+          className="w-full bg-white border border-stone-200 p-3 rounded-xl flex items-center justify-between font-medium text-stone-700 shadow-sm"
+        >
+          <div className="flex items-center gap-2">
+            <Filter size={18} />
+            Filtros e Busca
+          </div>
+          <ChevronDown size={18} className={`transition-transform ${showFiltersMobile ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+
       {/* Filters & Search */}
-      <div className="mb-12 flex flex-col md:flex-row gap-6 items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-stone-100">
+      <div className={`mb-12 flex-col md:flex-row gap-6 items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-stone-100 ${showFiltersMobile ? 'flex' : 'hidden md:flex'}`}>
         <div className="relative w-full md:w-96">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
           <input 

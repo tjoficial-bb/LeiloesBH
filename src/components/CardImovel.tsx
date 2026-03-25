@@ -249,6 +249,7 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
           className="w-full h-full object-cover" 
           referrerPolicy="no-referrer"
           loading="lazy"
+          decoding="async"
         />
         
         <div className="absolute top-3 right-3 flex flex-col gap-2">

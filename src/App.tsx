@@ -3,25 +3,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { CardImovel } from './components/CardImovel';
 import { Layout } from './components/Layout';
 import { Heart, Filter, ChevronDown, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import Sobre from './Sobre';
-import FAQ from './FAQ';
-import AdminSettings from './AdminSettings';
-import Leiloeiros from './pages/Leiloeiros';
-import BlogList from './BlogList';
-import BlogPost from './BlogPost';
-import AdminBlog from './AdminBlog';
-import DiscoveryDashboard from './DiscoveryDashboard';
 import { BlogCard } from './components/BlogCard';
 import { db, auth, handleFirestoreError, OperationType } from './firebase';
 import { collection, addDoc, updateDoc, doc, onSnapshot, getDocs, deleteDoc, query, limit, orderBy, getDocFromServer, where, setDoc } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User, browserPopupRedirectResolver } from 'firebase/auth';
-import { GoogleGenAI, Type } from "@google/genai";
+
+const Sobre = lazy(() => import('./Sobre'));
+const FAQ = lazy(() => import('./FAQ'));
+const AdminSettings = lazy(() => import('./AdminSettings'));
+const Leiloeiros = lazy(() => import('./pages/Leiloeiros'));
+const BlogList = lazy(() => import('./BlogList'));
+const BlogPost = lazy(() => import('./BlogPost'));
+const AdminBlog = lazy(() => import('./AdminBlog'));
+const DiscoveryDashboard = lazy(() => import('./DiscoveryDashboard'));
 
 const ADMIN_EMAIL = 'tjinvestoficial@gmail.com';
 
@@ -327,6 +327,7 @@ export default function App() {
             const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
             if (!apiKey) throw new Error("Chave de API não encontrada.");
 
+            const { GoogleGenAI, Type } = await import('@google/genai');
             const ai = new GoogleGenAI({ apiKey });
             const prompt = currentSettings.tickerPrompt || 'Gere 10 itens para uma barra de cotações de leilões de imóveis. Misture notícias curtas com notícias mais detalhadas (acima de 20 palavras). Inclua SELIC, IPCA, Dólar, Euro e novidades do mercado. Use um tom profissional.';
             
@@ -1005,7 +1006,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                       >
                         <div className="flex items-center gap-4 mb-6">
                           {t.photoUrl ? (
-                            <img src={t.photoUrl} alt={t.name} className="w-14 h-14 rounded-full object-cover border-2 border-primary/10" referrerPolicy="no-referrer" loading="lazy" />
+                            <img src={t.photoUrl} alt={t.name} className="w-14 h-14 rounded-full object-cover border-2 border-primary/10" referrerPolicy="no-referrer" loading="lazy" decoding="async" />
                           ) : (
                             <div className="w-14 h-14 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold text-xl">
                               {t.name.charAt(0)}
@@ -1045,7 +1046,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                       >
                         <div className="flex items-center gap-3 mb-4">
                           {t.photoUrl ? (
-                            <img src={t.photoUrl} alt={t.name} className="w-10 h-10 rounded-full object-cover border border-stone-100" referrerPolicy="no-referrer" loading="lazy" />
+                            <img src={t.photoUrl} alt={t.name} className="w-10 h-10 rounded-full object-cover border border-stone-100" referrerPolicy="no-referrer" loading="lazy" decoding="async" />
                           ) : (
                             <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold text-sm">
                               {t.name.charAt(0)}
@@ -1074,7 +1075,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                       className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 flex gap-6 items-start hover:shadow-md transition-shadow"
                     >
                       {t.photoUrl ? (
-                        <img src={t.photoUrl} alt={t.name} className="w-16 h-16 rounded-full object-cover border-2 border-primary/10" referrerPolicy="no-referrer" loading="lazy" />
+                        <img src={t.photoUrl} alt={t.name} className="w-16 h-16 rounded-full object-cover border-2 border-primary/10" referrerPolicy="no-referrer" loading="lazy" decoding="async" />
                       ) : (
                         <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold text-2xl shrink-0">
                           {t.name.charAt(0)}
@@ -1174,18 +1175,20 @@ Retorne apenas o texto da análise formatado em Markdown.`;
         </>
       )}
 
-      {currentPage === '/sobre' && <Sobre onNavigate={navigate} isAdmin={isAdmin} />}
-      {currentPage === '/faq' && <FAQ isAdmin={isAdmin} />}
-      {currentPage === '/blog' && <BlogList onNavigate={navigate} />}
-      {currentPage.startsWith('/blog/') && <BlogPost slug={currentPage.split('/blog/')[1]} onNavigate={navigate} />}
-      {currentPage === '/admin' && isAdmin && <AdminSettings onNavigate={navigate} />}
-      {currentPage === '/admin/blog' && isAdmin && <AdminBlog />}
-      {currentPage === '/admin/discovery' && isAdmin && (
-        <div className="max-w-7xl mx-auto px-4 py-12">
-          <DiscoveryDashboard onAddProperty={handleAddFromDiscovery} />
-        </div>
-      )}
-      {currentPage === '/leiloeiros' && <Leiloeiros />}
+      <Suspense fallback={<div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>}>
+        {currentPage === '/sobre' && <Sobre onNavigate={navigate} isAdmin={isAdmin} />}
+        {currentPage === '/faq' && <FAQ isAdmin={isAdmin} />}
+        {currentPage === '/blog' && <BlogList onNavigate={navigate} />}
+        {currentPage.startsWith('/blog/') && <BlogPost slug={currentPage.split('/blog/')[1]} onNavigate={navigate} />}
+        {currentPage === '/admin' && isAdmin && <AdminSettings onNavigate={navigate} />}
+        {currentPage === '/admin/blog' && isAdmin && <AdminBlog />}
+        {currentPage === '/admin/discovery' && isAdmin && (
+          <div className="max-w-7xl mx-auto px-4 py-12">
+            <DiscoveryDashboard onAddProperty={handleAddFromDiscovery} />
+          </div>
+        )}
+        {currentPage === '/leiloeiros' && <Leiloeiros />}
+      </Suspense>
       
       {editingImovel && createPortal(
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[9999]">
