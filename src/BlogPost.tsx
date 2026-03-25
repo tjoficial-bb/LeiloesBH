@@ -392,7 +392,7 @@ export default function BlogPost({ slug, onNavigate }: { slug: string, onNavigat
               prose-headings:text-stone-900 prose-headings:font-black prose-headings:tracking-tight
               prose-h2:text-3xl prose-h2:mt-16 prose-h2:mb-8 prose-h2:border-b prose-h2:border-stone-200 prose-h2:pb-6 prose-h2:leading-tight
               prose-h3:text-2xl prose-h3:mt-12 prose-h3:mb-6 prose-h3:leading-snug
-              prose-p:text-stone-600 prose-p:leading-[1.9] prose-p:mb-8 prose-p:text-justify md:prose-p:text-left
+              prose-p:text-stone-600 prose-p:leading-[1.9] prose-p:mb-8 prose-p:text-left
               prose-strong:text-stone-900 prose-strong:font-bold
               prose-ul:my-10 prose-li:mb-4 prose-li:text-stone-600
               prose-blockquote:border-l-8 prose-blockquote:border-primary prose-blockquote:bg-stone-50 prose-blockquote:py-8 prose-blockquote:px-10 prose-blockquote:rounded-r-3xl prose-blockquote:italic prose-blockquote:text-stone-800 prose-blockquote:my-12 prose-blockquote:shadow-sm prose-blockquote:not-italic

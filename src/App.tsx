@@ -744,6 +744,9 @@ Retorne apenas o texto da análise formatado em Markdown.`;
   const [filtroFavoritos, setFiltroFavoritos] = useState(false);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
 
+  const [listPage, setListPage] = useState(1);
+  const itemsPerPage = 15;
+
   const imoveisFiltrados = useMemo(() => {
     if (!Array.isArray(imoveis)) return [];
     return imoveis.filter(imovel => {
@@ -764,6 +767,14 @@ Retorne apenas o texto da análise formatado em Markdown.`;
       return matchesTitulo && matchesCidade && matchesTipo && matchesPreco && matchesDesconto && matchesEstado && matchesFavoritos;
     });
   }, [imoveis, filtroTitulo, filtroCidade, filtroTipo, filtroPrecoMax, filtroDescontoMin, filtroEstado, filtroFavoritos, favorites]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setListPage(1);
+  }, [filtroTitulo, filtroCidade, filtroTipo, filtroPrecoMax, filtroDescontoMin, filtroEstado, filtroFavoritos]);
+
+  const totalPages = Math.ceil(imoveisFiltrados.length / itemsPerPage);
+  const paginatedImoveis = imoveisFiltrados.slice((listPage - 1) * itemsPerPage, listPage * itemsPerPage);
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
@@ -789,27 +800,40 @@ Retorne apenas o texto da análise formatado em Markdown.`;
       {currentPage === '/' && (
         <>
           {isAdmin && (
-            <div className="mb-8 p-6 bg-white rounded-xl shadow-sm border border-stone-100">
+            <div className="mb-8 p-4 sm:p-6 bg-white rounded-2xl shadow-sm border border-stone-100">
               <h2 className="text-xl font-bold mb-4">Painel de Administração</h2>
-              <div className="flex flex-col gap-4">
-                <textarea 
-                  value={url} 
-                  onChange={(e) => setUrl(e.target.value)} 
-                  placeholder="Cole os links dos leilões (um por linha)" 
-                  className="border p-2 rounded w-full h-32 resize-none"
-                />
-                <button 
-                  onClick={handleScrape} 
-                  disabled={!!isProcessing}
-                  className={`bg-blue-600 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg hover:bg-blue-700 active:scale-95 ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {isProcessing === 'new' ? (
-                    <div className="flex flex-col items-center">
-                      <span>Processando {scrapeProgress?.current}/{scrapeProgress?.total}</span>
-                      <span className="text-[10px] font-normal opacity-75 truncate max-w-[200px]">{scrapeProgress?.url}</span>
-                    </div>
-                  ) : 'Fazer Scrape de Todos'}
-                </button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <textarea 
+                    value={url} 
+                    onChange={(e) => setUrl(e.target.value)} 
+                    placeholder="Cole os links dos leilões (um por linha)" 
+                    className="border border-stone-200 p-3 rounded-xl w-full h-32 resize-none focus:ring-2 focus:ring-primary outline-none"
+                  />
+                  <button 
+                    onClick={handleScrape}
+                    disabled={!!isProcessing}
+                    className={`bg-primary text-white p-3 rounded-xl font-bold hover:bg-primary-dark transition-all disabled:opacity-50 ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {isProcessing === 'new' ? (
+                      <div className="flex flex-col items-center">
+                        <span>Processando {scrapeProgress?.current}/{scrapeProgress?.total}</span>
+                        <span className="text-[10px] font-normal opacity-75 truncate max-w-[200px]">{scrapeProgress?.url}</span>
+                      </div>
+                    ) : 'Fazer Scrape de Todos'}
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div className="p-4 bg-stone-50 rounded-xl border border-stone-100 h-32 flex flex-col justify-center items-center text-center">
+                    <p className="text-sm font-bold text-stone-700 mb-2">Gerenciamento de Blog</p>
+                    <button 
+                      onClick={() => navigate('/admin-blog')}
+                      className="bg-stone-900 text-white px-6 py-2 rounded-xl font-bold hover:bg-black transition-all"
+                    >
+                      Acessar Blog Admin
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -869,13 +893,40 @@ Retorne apenas o texto da análise formatado em Markdown.`;
             </button>
           </div>
           
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+            <p className="text-xs sm:text-sm text-stone-600 font-medium text-center sm:text-left">
+              Mostrando {Math.min(itemsPerPage * listPage, imoveisFiltrados.length)} de {imoveisFiltrados.length} oportunidades
+            </p>
+            {totalPages > 1 && (
+              <div className="flex gap-2 w-full sm:w-auto justify-center sm:justify-end">
+                <button 
+                  onClick={() => setListPage(p => Math.max(1, p - 1))}
+                  disabled={listPage === 1}
+                  className="px-3 py-2 bg-white border border-stone-200 rounded-lg disabled:opacity-50 font-bold text-xs sm:text-sm hover:bg-stone-50 transition-colors flex-1 sm:flex-none"
+                >
+                  Anterior
+                </button>
+                <span className="px-3 py-2 font-bold text-xs sm:text-sm flex items-center bg-stone-50 rounded-lg border border-stone-100">
+                  {listPage} / {totalPages}
+                </span>
+                <button 
+                  onClick={() => setListPage(p => Math.min(totalPages, p + 1))}
+                  disabled={listPage === totalPages}
+                  className="px-3 py-2 bg-white border border-stone-200 rounded-lg disabled:opacity-50 font-bold text-xs sm:text-sm hover:bg-stone-50 transition-colors flex-1 sm:flex-none"
+                >
+                  Próximo
+                </button>
+              </div>
+            )}
+          </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="bg-stone-100 animate-pulse h-96 rounded-2xl"></div>
               ))
-            ) : (imoveisFiltrados && imoveisFiltrados.length > 0) ? (
-              imoveisFiltrados.map((imovel, index) => (
+            ) : (paginatedImoveis && paginatedImoveis.length > 0) ? (
+              paginatedImoveis.map((imovel, index) => (
                 <div 
                   key={imovel.id} 
                   className="relative"
@@ -1020,19 +1071,19 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                       className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 flex gap-6 items-start hover:shadow-md transition-shadow"
                     >
                       {t.photoUrl ? (
-                        <img src={t.photoUrl} alt={t.name} className="w-16 h-16 rounded-full object-cover border border-stone-100 shrink-0" referrerPolicy="no-referrer" />
+                        <img src={t.photoUrl} alt={t.name} className="w-16 h-16 rounded-full object-cover border-2 border-primary/10" referrerPolicy="no-referrer" loading="lazy" />
                       ) : (
                         <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold text-2xl shrink-0">
                           {t.name.charAt(0)}
                         </div>
                       )}
                       <div>
-                        <div className="flex items-center gap-3 mb-2">
+                        <div className="flex items-center gap-2 mb-2">
                           <p className="font-bold text-stone-900 text-lg">{t.name}</p>
-                          <span className="text-xs text-stone-400 font-medium px-2 py-0.5 bg-stone-50 rounded-full">{t.role}</span>
-                          <div className="flex text-amber-400 text-xs">
-                            {"★".repeat(t.rating || 5)}{"☆".repeat(5 - (t.rating || 5))}
-                          </div>
+                          <p className="text-xs text-stone-400 font-medium uppercase tracking-wider">{t.role}</p>
+                        </div>
+                        <div className="flex text-amber-400 text-xs mb-3">
+                          {"★".repeat(t.rating || 5)}{"☆".repeat(5 - (t.rating || 5))}
                         </div>
                         <p className="text-stone-600 leading-relaxed italic">"{t.text}"</p>
                       </div>
@@ -1062,30 +1113,28 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  {testimonials.map((t, i) => (
+                  {testimonials.map((t) => (
                     <div 
                       key={t.id}
-                      className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 flex flex-col hover:shadow-md transition-shadow"
+                      className="bg-white p-8 rounded-2xl shadow-sm border border-stone-100 flex flex-col hover:shadow-md transition-shadow"
                     >
-                      <div className="flex items-center gap-4 mb-4">
+                      <div className="flex items-center gap-4 mb-6">
                         {t.photoUrl ? (
-                          <img src={t.photoUrl} alt={t.name} className="w-12 h-12 rounded-full object-cover border border-stone-100" referrerPolicy="no-referrer" />
+                          <img src={t.photoUrl} alt={t.name} className="w-14 h-14 rounded-full object-cover border-2 border-primary/10" referrerPolicy="no-referrer" loading="lazy" />
                         ) : (
-                          <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold">
+                          <div className="w-14 h-14 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold text-xl">
                             {t.name.charAt(0)}
                           </div>
                         )}
                         <div>
-                          <p className="font-bold text-stone-900 leading-tight">{t.name}</p>
-                          <div className="flex text-amber-400 text-xs mt-0.5">
+                          <p className="font-bold text-stone-900 text-lg leading-tight">{t.name}</p>
+                          <p className="text-xs text-stone-400 font-medium uppercase tracking-wider">{t.role}</p>
+                          <div className="flex text-amber-400 text-xs mt-1">
                             {"★".repeat(t.rating || 5)}{"☆".repeat(5 - (t.rating || 5))}
                           </div>
                         </div>
                       </div>
-                      <p className="text-stone-600 text-sm leading-relaxed mb-4 flex-grow italic">"{t.text}"</p>
-                      <div className="pt-4 border-t border-stone-50">
-                        <p className="text-[10px] text-stone-400 uppercase tracking-widest font-bold">{t.role}</p>
-                      </div>
+                      <p className="text-stone-600 leading-relaxed mb-4 flex-grow italic text-lg">"{t.text}"</p>
                     </div>
                   ))}
                 </div>

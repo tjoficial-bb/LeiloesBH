@@ -272,18 +272,18 @@ export default function AdminBlog() {
             exit={{ opacity: 0, y: -20 }}
             className="bg-white p-8 rounded-3xl shadow-xl border border-stone-100"
           >
-            <div className="flex justify-between items-center mb-8 pb-6 border-b border-stone-100">
-              <h2 className="text-2xl font-bold text-stone-800 flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 pb-6 border-b border-stone-100 gap-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-stone-800 flex items-center gap-2">
                 {currentPost.id ? <Edit2 size={24} className="text-primary" /> : <Plus size={24} className="text-primary" />}
                 {currentPost.id ? 'Editar Artigo' : 'Novo Artigo'}
               </h2>
-              <div className="flex gap-3">
-                <button onClick={() => setIsEditing(false)} className="px-6 py-2.5 rounded-xl font-bold text-stone-500 hover:bg-stone-50 transition-colors">
+              <div className="flex gap-3 w-full sm:w-auto">
+                <button onClick={() => setIsEditing(false)} className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl font-bold text-stone-500 hover:bg-stone-50 transition-colors">
                   Cancelar
                 </button>
-                <button onClick={handleSave} className="bg-primary text-white px-8 py-2.5 rounded-xl font-bold shadow-lg hover:bg-primary-dark transition-all flex items-center gap-2">
+                <button onClick={handleSave} className="flex-1 sm:flex-none bg-primary text-white px-8 py-2.5 rounded-xl font-bold shadow-lg hover:bg-primary-dark transition-all flex items-center justify-center gap-2">
                   <Save size={20} />
-                  Salvar Artigo
+                  Salvar
                 </button>
               </div>
             </div>
@@ -614,37 +614,36 @@ export default function AdminBlog() {
               ))
             ) : posts.length > 0 ? (
               posts.map(post => (
-                <div key={post.id} className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 flex items-center justify-between hover:border-primary/20 transition-all group">
-                  <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 shadow-sm">
+                <div key={post.id} className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-stone-100 flex flex-col sm:flex-row items-start sm:items-center justify-between hover:border-primary/20 transition-all group gap-4">
+                  <div className="flex items-center gap-4 sm:gap-6 w-full sm:w-auto">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden shrink-0 shadow-sm">
                       <img src={post.imageUrl || `https://picsum.photos/seed/${post.slug}/200/200`} alt={post.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-3 mb-1">
-                        <h3 className="font-bold text-stone-900 group-hover:text-primary transition-colors">{post.title}</h3>
-                        {post.featured && <Star size={14} className="text-amber-400 fill-amber-400" />}
-                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${post.status === 'published' ? 'bg-emerald-100 text-emerald-600' : 'bg-stone-100 text-stone-400'}`}>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h3 className="font-bold text-stone-900 group-hover:text-primary transition-colors truncate">{post.title}</h3>
+                        {post.featured && <Star size={14} className="text-amber-400 fill-amber-400 shrink-0" />}
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0 ${post.status === 'published' ? 'bg-emerald-100 text-emerald-600' : 'bg-stone-100 text-stone-400'}`}>
                           {post.status === 'published' ? 'Publicado' : 'Rascunho'}
                         </span>
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-stone-400">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-[10px] sm:text-xs text-stone-400">
                         <span className="flex items-center gap-1"><Calendar size={12} /> {new Date(post.date).toLocaleDateString('pt-BR')}</span>
-                        <span className="flex items-center gap-1"><User size={12} /> {post.author}</span>
-                        <span className="flex items-center gap-1"><LinkIcon size={12} /> /blog/{post.slug}</span>
+                        <span className="flex items-center gap-1 truncate"><User size={12} /> {post.author}</span>
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 w-full sm:w-auto justify-end">
                     <button 
                       onClick={() => { setCurrentPost(post); setIsEditing(true); }}
-                      className="p-3 rounded-xl bg-stone-50 text-stone-600 hover:bg-primary hover:text-white transition-all shadow-sm"
+                      className="p-2 sm:p-3 rounded-xl bg-stone-50 text-stone-600 hover:bg-primary hover:text-white transition-all shadow-sm"
                       title="Editar"
                     >
                       <Edit2 size={18} />
                     </button>
                     <button 
                       onClick={() => handleDelete(post.id!)}
-                      className="p-3 rounded-xl bg-stone-50 text-stone-600 hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                      className="p-2 sm:p-3 rounded-xl bg-stone-50 text-stone-600 hover:bg-red-600 hover:text-white transition-all shadow-sm"
                       title="Excluir"
                     >
                       <Trash2 size={18} />

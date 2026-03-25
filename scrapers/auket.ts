@@ -67,6 +67,12 @@ export class AuketScraper implements Scraper {
           return text.replace(/location_on|arrow_downward|house/gi, '').trim();
         };
 
+        const parsePrice = (price: string) => {
+          if (!price) return 0;
+          const cleaned = price.replace(/[^\d,]/g, '').replace(',', '.');
+          return parseFloat(cleaned) || 0;
+        };
+
         // Extrair título
         const titulo = (document.querySelector('h2.text-lead-500.font-bold') as HTMLElement)?.innerText.trim() || 'Sem título';
         
@@ -122,45 +128,42 @@ export class AuketScraper implements Scraper {
         // Extrair condições - usando seletor de atributo para evitar problemas com a barra na classe
         const condicoes_pagamento = (document.querySelector('div[class*="text-black/70"][class*="font-normal"]') as HTMLElement)?.innerText.trim() || '';
         
-        // Extrair datas e valores de praça - abordagem mais robusta
-        const extractPracaInfo = (keywords: string[]) => {
-          const elements = Array.from(document.querySelectorAll('*')).filter(el => {
-            const text = el.textContent || '';
-            return keywords.some(k => text.toLowerCase().includes(k.toLowerCase())) && text.length < 150;
-          });
+        // Extrair datas e valores de praça - abordagem específica para a estrutura da imagem
+        const extractPracaInfo = () => {
+          const results = { p1: { data: '', valor: '' }, p2: { data: '', valor: '' } };
           
-          let foundData = '';
-          let foundValor = '';
+          // O elemento pai que contém as informações de praça parece ter um ícone de calendário
+          // Vamos buscar todos os elementos que contêm informações de praça
+          const pracaElements = Array.from(document.querySelectorAll('div')).filter(div => {
+            const text = div.innerText || '';
+            return (text.includes('1º Praça') || text.includes('1ª Praça') || text.includes('2º Praça') || text.includes('2ª Praça')) && 
+                   text.includes('R$');
+          });
 
-          const currencyRegex = /(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/i;
+          console.log('DEBUG: Praca elements found:', pracaElements.map(e => e.innerText));
+          
+          const currencyRegex = /R\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)/i;
           const dateRegex = /(\d{1,2}[\/\.]\d{1,2}[\/\.]\d{2,4}(?:\s+\d{2}:\d{2})?)/i;
+          
+          for (const el of pracaElements) {
+            const text = el.innerText || '';
+            const matchData = text.match(dateRegex);
+            const matchValor = text.match(currencyRegex);
+            
+            if (matchData && matchValor) {
+              const valorNumerico = parseFloat(matchValor[1].replace(/\./g, '').replace(',', '.'));
+              if (valorNumerico < 100) continue; // Ignora valores muito baixos
 
-          for (const el of elements) {
-            let container = el.parentElement;
-            for (let i = 0; i < 3; i++) {
-              if (!container) break;
-              const contextText = (container as HTMLElement).innerText || '';
-              
-              if (!foundData) {
-                const matchData = contextText.match(dateRegex);
-                if (matchData) {
-                  foundData = matchData[1];
-                }
+              const info = { data: matchData[1], valor: 'R$ ' + matchValor[1] };
+              if (text.includes('1º') || text.includes('1ª')) {
+                results.p1 = info;
+              } else if (text.includes('2º') || text.includes('2ª')) {
+                results.p2 = info;
               }
-              
-              if (!foundValor) {
-                const matchValor = contextText.match(currencyRegex);
-                if (matchValor) {
-                  foundValor = 'R$ ' + matchValor[1];
-                }
-              }
-              
-              if (foundData && foundValor) return { data: foundData, valor: foundValor };
-              container = container.parentElement;
             }
           }
-
-          return { data: foundData, valor: foundValor };
+          
+          return results;
         };
 
         const extractValueByKeyword = (keywords: string[]) => {
@@ -169,7 +172,7 @@ export class AuketScraper implements Scraper {
             return keywords.some(k => text.toLowerCase().includes(k.toLowerCase())) && text.length < 100;
           });
           
-          const currencyRegex = /(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/i;
+          const currencyRegex = /R\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)/i;
 
           for (const el of elements) {
             let current: Element | null = el;
@@ -180,20 +183,29 @@ export class AuketScraper implements Scraper {
               // Check current element text
               const currentText = (current as HTMLElement).innerText || current.textContent || '';
               const currentMatch = currentText.match(currencyRegex);
-              if (currentMatch) return 'R$ ' + currentMatch[1];
+              if (currentMatch) {
+                const valorNumerico = parseFloat(currentMatch[1].replace(/\./g, '').replace(',', '.'));
+                if (valorNumerico >= 100) return 'R$ ' + currentMatch[1];
+              }
 
               // Check all siblings
               const siblings = Array.from(current.parentElement?.children || []);
               for (const sibling of siblings) {
                 const siblingText = (sibling as HTMLElement).innerText || sibling.textContent || '';
                 const match = siblingText.match(currencyRegex);
-                if (match) return 'R$ ' + match[1];
+                if (match) {
+                  const valorNumerico = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
+                  if (valorNumerico >= 100) return 'R$ ' + match[1];
+                }
               }
 
               // Check parent text
               const parentText = (current.parentElement as HTMLElement)?.innerText || current.parentElement?.textContent || '';
               const parentMatch = parentText.match(currencyRegex);
-              if (parentMatch) return 'R$ ' + parentMatch[1];
+              if (parentMatch) {
+                const valorNumerico = parseFloat(parentMatch[1].replace(/\./g, '').replace(',', '.'));
+                if (valorNumerico >= 100) return 'R$ ' + parentMatch[1];
+              }
 
               current = current.parentElement;
             }
@@ -204,19 +216,20 @@ export class AuketScraper implements Scraper {
           for (const keyword of keywords) {
             const regex = new RegExp(keyword + '[^R$]*' + currencyRegex.source, 'i');
             const match = bodyText.match(regex);
-            if (match) return 'R$ ' + match[1];
+            if (match) {
+              const valorNumerico = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
+              if (valorNumerico >= 100) return 'R$ ' + match[1];
+            }
           }
 
           return '';
         };
 
-        const p1Keywords = ['1ª Praça', '1º Leilão', '1ª Praca', '1º Leilao', 'Primeira Praça', 'Primeiro Leilão', '1º Ciclo', '1ª Data', '1º Encerramento', '1º Praça', '1° Praça', '1ª Leilão', '1ª Etapa', '1º Período', 'Data 1', '1º Prazo', '1ª PRAÇA', '1ª PRACA', '1ª praca', '1a praça', '1° Praça'];
-        const p2Keywords = ['2ª Praça', '2º Leilão', '2ª Praca', '2º Leilao', 'Segunda Praça', 'Segundo Leilão', '2º Ciclo', '2ª Data', '2º Encerramento', '2º Praça', '2° Praça', '2ª Leilão', '2ª Etapa', '2º Período', 'Data 2', '2º Prazo', '2ª PRAÇA', '2ª PRACA', '2ª praca', '2a praça'];
-
-        const p1 = extractPracaInfo(p1Keywords);
-        const p2 = extractPracaInfo(p2Keywords);
-        
-        let primeira_praca_data = p1.data, primeira_praca_valor = p1.valor, segunda_praca_data = p2.data, segunda_praca_valor = p2.valor;
+        const pracaInfo = extractPracaInfo();
+        let primeira_praca_data = pracaInfo.p1.data;
+        let primeira_praca_valor = pracaInfo.p1.valor;
+        let segunda_praca_data = pracaInfo.p2.data;
+        let segunda_praca_valor = pracaInfo.p2.valor;
         
         let valor_avaliacao = (document.querySelector('p.line-through') as HTMLElement)?.innerText.trim() || extractValueByKeyword(['Avaliação', 'Valor de Avaliação', 'Avaliado em', 'Valor do Imóvel', 'Valor de Mercado', 'Preço de Avaliação', 'Valor Avaliado', 'Total da Avaliação']) || '0';
         let preco_leilao = (document.querySelector('span.text-lead-500.font-extrabold') as HTMLElement)?.innerText.trim() || extractValueByKeyword(['Lance Mínimo', 'Lance Inicial', 'Valor Mínimo', 'Preço Mínimo', 'Valor de Venda', 'Lance Atual', 'Valor de Lance', 'Lance de Venda']) || '0';
@@ -261,20 +274,24 @@ export class AuketScraper implements Scraper {
         if (isInvalid(preco_leilao)) preco_leilao = '';
 
         // Fallback final com base na regra de negócio: 1ª Praça = Avaliação, 2ª Praça = Preço Leilão
-        if (!primeira_praca_valor || primeira_praca_valor === '0' || primeira_praca_valor === '') {
+        // Se não encontrar praças, mas tiver preço de leilão, usa ele como referência
+        const vAval = parsePrice(valor_avaliacao);
+        const vLeilao = parsePrice(preco_leilao);
+
+        if ((!primeira_praca_valor || primeira_praca_valor === '0' || primeira_praca_valor === '') && vAval > 0) {
           primeira_praca_valor = valor_avaliacao;
         }
-        if (!segunda_praca_valor || segunda_praca_valor === '0' || segunda_praca_valor === '') {
+        if ((!segunda_praca_valor || segunda_praca_valor === '0' || segunda_praca_valor === '') && vLeilao > 0) {
           segunda_praca_valor = preco_leilao;
         }
 
-        // Correção de inversão: Se o valor da 1ª praça for menor que o da 2ª, provavelmente estão invertidos
-        const parsePrice = (price: string) => {
-          if (!price) return 0;
-          const cleaned = price.replace(/[^\d,]/g, '').replace(',', '.');
-          return parseFloat(cleaned) || 0;
-        };
+        // Caso especial: Se não encontrou praças, mas tem preço de leilão, assume que é o preço atual
+        if ((!primeira_praca_valor || primeira_praca_valor === '0') && vLeilao > 0) {
+          primeira_praca_valor = preco_leilao;
+          if (vAval === 0) valor_avaliacao = preco_leilao;
+        }
 
+        // Correção de inversão: Se o valor da 1ª praça for menor que o da 2ª, provavelmente estão invertidos
         const v1 = parsePrice(primeira_praca_valor);
         const v2 = parsePrice(segunda_praca_valor);
 
@@ -303,8 +320,6 @@ export class AuketScraper implements Scraper {
           }
         }
 
-        const vAval = parsePrice(valor_avaliacao);
-        const vLeilao = parsePrice(preco_leilao);
         let descontoCalculado = '';
         if (vAval > 0 && vLeilao > 0 && vAval > vLeilao) {
           const descPerc = Math.round((1 - (vLeilao / vAval)) * 100);
