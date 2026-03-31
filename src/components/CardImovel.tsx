@@ -249,7 +249,6 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
           className="w-full h-full object-cover" 
           referrerPolicy="no-referrer"
           loading="lazy"
-          decoding="async"
         />
         
         <div className="absolute top-3 right-3 flex flex-col gap-2">
@@ -375,7 +374,7 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
           <div className="relative">
             <p className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">{imovel.titulo_roi || 'ROI Est.'}</p>
             <div className="flex items-center gap-1">
-              <p className="text-xs font-bold text-blue-700">{lanceMinimoOriginal > 0 ? `${roiOriginal}%` : 'N/A'}</p>
+              <p className="text-xs font-bold text-blue-700">{roiOriginal}%</p>
               {showRoi && (
                 <button 
                   onClick={() => setShowCalc(!showCalc)}
@@ -637,7 +636,7 @@ Link: ${window.location.origin}/imovel/${imovel.id}`;
         </div>
         
         <a href={imovel.link_botao || imovel.link_original} target="_blank" rel="noopener noreferrer" className="block text-center bg-stone-900 text-white font-semibold px-4 py-3 rounded-xl hover:bg-stone-800 transition-colors mt-auto">
-          {imovel.texto_botao || settings?.defaultCtaText || 'Ver Detalhes do Leilão'}
+          {imovel.texto_botao || 'Ver Detalhes do Leilão'}
         </a>
       </div>
     </div>

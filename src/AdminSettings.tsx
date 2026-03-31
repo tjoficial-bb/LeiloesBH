@@ -107,7 +107,6 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
     scoreWeightDiscount: 30,
     scoreWeightLiquidity: 15,
     scoreWeightRisk: 15,
-    defaultCtaText: 'Ver Detalhes do Leilão',
   });
   const [faqs, setFaqs] = useState<any[]>([]);
   const [newFaq, setNewFaq] = useState({ question: '', answer: '' });
@@ -243,7 +242,7 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `Gere um depoimento convincente (máximo 600 caracteres) em português do Brasil para um site de assessoria em leilões de imóveis. O nome do cliente é ${currentName} e seu papel é ${currentRole}. O tom deve ser profissional e de satisfação com o lucro obtido. IMPORTANTE: A RESPOSTA DEVE SER EXCLUSIVAMENTE EM PORTUGUÊS DO BRASIL.`,
+        contents: `Gere um depoimento curto e convincente (máximo 200 caracteres) em português do Brasil para um site de assessoria em leilões de imóveis. O nome do cliente é ${currentName} e seu papel é ${currentRole}. O tom deve ser profissional e de satisfação com o lucro obtido. IMPORTANTE: A RESPOSTA DEVE SER EXCLUSIVAMENTE EM PORTUGUÊS DO BRASIL.`,
       });
       const newText = response.text.trim().replace(/^"|"$/g, '');
       
@@ -539,10 +538,6 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
             <div>
               <label className="block text-xs font-semibold text-stone-600 mb-1">Descrição do Site (SEO)</label>
               <input className="w-full border p-2 rounded" placeholder="Descrição curta" value={settings.siteDescription} onChange={e => setSettings({...settings, siteDescription: e.target.value})} />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-stone-600 mb-1">Texto Padrão do Botão (CTA)</label>
-              <input className="w-full border p-2 rounded" placeholder="Ver Detalhes do Leilão" value={settings.defaultCtaText || 'Ver Detalhes do Leilão'} onChange={e => setSettings({...settings, defaultCtaText: e.target.value})} />
             </div>
           </div>
           
@@ -1120,7 +1115,7 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
               </div>
               <input className="border p-2 rounded" placeholder="URL da Foto (Opcional)" value={newTestimonial.photoUrl} onChange={e => setNewTestimonial({...newTestimonial, photoUrl: e.target.value})} />
             </div>
-            <textarea className="w-full border p-2 rounded" placeholder="Texto do Depoimento" value={newTestimonial.text} onChange={e => setNewTestimonial({...newTestimonial, text: e.target.value})} rows={6} />
+            <textarea className="w-full border p-2 rounded" placeholder="Texto do Depoimento" value={newTestimonial.text} onChange={e => setNewTestimonial({...newTestimonial, text: e.target.value})} rows={3} />
             <button 
               onClick={async () => {
                 try {
@@ -1152,7 +1147,7 @@ export default function AdminSettings({ onNavigate }: { onNavigate: (path: strin
                       </div>
                     </div>
                     <div className="relative">
-                      <textarea className="w-full border p-2 rounded text-sm" value={editingTestimonial.text} onChange={e => setEditingTestimonial({...editingTestimonial, text: e.target.value})} rows={6} placeholder="Texto do depoimento" />
+                      <textarea className="w-full border p-2 rounded text-sm" value={editingTestimonial.text} onChange={e => setEditingTestimonial({...editingTestimonial, text: e.target.value})} rows={3} placeholder="Texto do depoimento" />
                       <button 
                         onClick={() => regenerateText(t.id, editingTestimonial.name, editingTestimonial.role)}
                         className="absolute right-2 bottom-2 bg-amber-100 text-amber-700 px-2 py-1 rounded text-[10px] font-bold hover:bg-amber-200"

@@ -3,25 +3,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { CardImovel } from './components/CardImovel';
 import { Layout } from './components/Layout';
 import { Heart, Filter, ChevronDown, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import Sobre from './Sobre';
+import FAQ from './FAQ';
+import AdminSettings from './AdminSettings';
+import Leiloeiros from './pages/Leiloeiros';
+import BlogList from './BlogList';
+import BlogPost from './BlogPost';
+import AdminBlog from './AdminBlog';
+import DiscoveryDashboard from './DiscoveryDashboard';
 import { BlogCard } from './components/BlogCard';
 import { db, auth, handleFirestoreError, OperationType } from './firebase';
 import { collection, addDoc, updateDoc, doc, onSnapshot, getDocs, deleteDoc, query, limit, orderBy, getDocFromServer, where, setDoc } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User, browserPopupRedirectResolver } from 'firebase/auth';
-
-const Sobre = lazy(() => import('./Sobre'));
-const FAQ = lazy(() => import('./FAQ'));
-const AdminSettings = lazy(() => import('./AdminSettings'));
-const Leiloeiros = lazy(() => import('./pages/Leiloeiros'));
-const BlogList = lazy(() => import('./BlogList'));
-const BlogPost = lazy(() => import('./BlogPost'));
-const AdminBlog = lazy(() => import('./AdminBlog'));
-const DiscoveryDashboard = lazy(() => import('./DiscoveryDashboard'));
+import { GoogleGenAI, Type } from "@google/genai";
 
 const ADMIN_EMAIL = 'tjinvestoficial@gmail.com';
 
@@ -327,7 +327,6 @@ export default function App() {
             const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
             if (!apiKey) throw new Error("Chave de API não encontrada.");
 
-            const { GoogleGenAI, Type } = await import('@google/genai');
             const ai = new GoogleGenAI({ apiKey });
             const prompt = currentSettings.tickerPrompt || 'Gere 10 itens para uma barra de cotações de leilões de imóveis. Misture notícias curtas com notícias mais detalhadas (acima de 20 palavras). Inclua SELIC, IPCA, Dólar, Euro e novidades do mercado. Use um tom profissional.';
             
@@ -394,10 +393,10 @@ export default function App() {
           if (scrollLeft + clientWidth >= scrollWidth - 10) {
             carouselRef.current.scrollTo({ left: 0, behavior: 'smooth' });
           } else {
-            carouselRef.current.scrollBy({ left: 350, behavior: 'smooth' });
+            carouselRef.current.scrollBy({ left: 600, behavior: 'smooth' });
           }
         }
-      }, 3000); // 3 seconds per slide
+      }, 800); // Reduced to 800ms and increased scroll amount for faster scrolling
       return () => clearInterval(interval);
     }
   }, [settings.testimonialStyle, testimonials, isCarouselPaused]);
@@ -472,7 +471,7 @@ export default function App() {
         console.log(`Processando ${i + 1}/${urlList.length}:`, currentUrl);
         
         try {
-          const response = await fetch('/api/scrape', {
+          const response = await fetch(`${window.location.origin}/api/scrape`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: currentUrl })
@@ -510,7 +509,7 @@ export default function App() {
     if (!(user?.email === ADMIN_EMAIL)) return;
     setIsProcessing('discovery');
     try {
-      const response = await fetch('/api/scrape', {
+      const response = await fetch(`${window.location.origin}/api/scrape`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: discoveryUrl })
@@ -674,7 +673,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
     if (!isAdmin) return;
     setIsProcessing(id);
     try {
-      const response = await fetch('/api/update-property', {
+      const response = await fetch(`${window.location.origin}/api/update-property`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, url })
@@ -745,9 +744,6 @@ Retorne apenas o texto da análise formatado em Markdown.`;
   const [filtroFavoritos, setFiltroFavoritos] = useState(false);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
 
-  const [listPage, setListPage] = useState(1);
-  const itemsPerPage = 15;
-
   const imoveisFiltrados = useMemo(() => {
     if (!Array.isArray(imoveis)) return [];
     return imoveis.filter(imovel => {
@@ -768,14 +764,6 @@ Retorne apenas o texto da análise formatado em Markdown.`;
       return matchesTitulo && matchesCidade && matchesTipo && matchesPreco && matchesDesconto && matchesEstado && matchesFavoritos;
     });
   }, [imoveis, filtroTitulo, filtroCidade, filtroTipo, filtroPrecoMax, filtroDescontoMin, filtroEstado, filtroFavoritos, favorites]);
-
-  // Reset page when filters change
-  useEffect(() => {
-    setListPage(1);
-  }, [filtroTitulo, filtroCidade, filtroTipo, filtroPrecoMax, filtroDescontoMin, filtroEstado, filtroFavoritos]);
-
-  const totalPages = Math.ceil(imoveisFiltrados.length / itemsPerPage);
-  const paginatedImoveis = imoveisFiltrados.slice((listPage - 1) * itemsPerPage, listPage * itemsPerPage);
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
@@ -801,40 +789,27 @@ Retorne apenas o texto da análise formatado em Markdown.`;
       {currentPage === '/' && (
         <>
           {isAdmin && (
-            <div className="mb-8 p-4 sm:p-6 bg-white rounded-2xl shadow-sm border border-stone-100">
+            <div className="mb-8 p-6 bg-white rounded-xl shadow-sm border border-stone-100">
               <h2 className="text-xl font-bold mb-4">Painel de Administração</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-2">
-                  <textarea 
-                    value={url} 
-                    onChange={(e) => setUrl(e.target.value)} 
-                    placeholder="Cole os links dos leilões (um por linha)" 
-                    className="border border-stone-200 p-3 rounded-xl w-full h-32 resize-none focus:ring-2 focus:ring-primary outline-none"
-                  />
-                  <button 
-                    onClick={handleScrape}
-                    disabled={!!isProcessing}
-                    className={`bg-primary text-white p-3 rounded-xl font-bold hover:bg-primary-dark transition-all disabled:opacity-50 ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    {isProcessing === 'new' ? (
-                      <div className="flex flex-col items-center">
-                        <span>Processando {scrapeProgress?.current}/{scrapeProgress?.total}</span>
-                        <span className="text-[10px] font-normal opacity-75 truncate max-w-[200px]">{scrapeProgress?.url}</span>
-                      </div>
-                    ) : 'Fazer Scrape de Todos'}
-                  </button>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <div className="p-4 bg-stone-50 rounded-xl border border-stone-100 h-32 flex flex-col justify-center items-center text-center">
-                    <p className="text-sm font-bold text-stone-700 mb-2">Gerenciamento de Blog</p>
-                    <button 
-                      onClick={() => navigate('/admin-blog')}
-                      className="bg-stone-900 text-white px-6 py-2 rounded-xl font-bold hover:bg-black transition-all"
-                    >
-                      Acessar Blog Admin
-                    </button>
-                  </div>
-                </div>
+              <div className="flex flex-col gap-4">
+                <textarea 
+                  value={url} 
+                  onChange={(e) => setUrl(e.target.value)} 
+                  placeholder="Cole os links dos leilões (um por linha)" 
+                  className="border p-2 rounded w-full h-32 resize-none"
+                />
+                <button 
+                  onClick={handleScrape} 
+                  disabled={!!isProcessing}
+                  className={`bg-blue-600 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg hover:bg-blue-700 active:scale-95 ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isProcessing === 'new' ? (
+                    <div className="flex flex-col items-center">
+                      <span>Processando {scrapeProgress?.current}/{scrapeProgress?.total}</span>
+                      <span className="text-[10px] font-normal opacity-75 truncate max-w-[200px]">{scrapeProgress?.url}</span>
+                    </div>
+                  ) : 'Fazer Scrape de Todos'}
+                </button>
               </div>
             </div>
           )}
@@ -894,40 +869,13 @@ Retorne apenas o texto da análise formatado em Markdown.`;
             </button>
           </div>
           
-          <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-            <p className="text-xs sm:text-sm text-stone-600 font-medium text-center sm:text-left">
-              Mostrando {Math.min(itemsPerPage * listPage, imoveisFiltrados.length)} de {imoveisFiltrados.length} oportunidades
-            </p>
-            {totalPages > 1 && (
-              <div className="flex gap-2 w-full sm:w-auto justify-center sm:justify-end">
-                <button 
-                  onClick={() => setListPage(p => Math.max(1, p - 1))}
-                  disabled={listPage === 1}
-                  className="px-3 py-2 bg-white border border-stone-200 rounded-lg disabled:opacity-50 font-bold text-xs sm:text-sm hover:bg-stone-50 transition-colors flex-1 sm:flex-none"
-                >
-                  Anterior
-                </button>
-                <span className="px-3 py-2 font-bold text-xs sm:text-sm flex items-center bg-stone-50 rounded-lg border border-stone-100">
-                  {listPage} / {totalPages}
-                </span>
-                <button 
-                  onClick={() => setListPage(p => Math.min(totalPages, p + 1))}
-                  disabled={listPage === totalPages}
-                  className="px-3 py-2 bg-white border border-stone-200 rounded-lg disabled:opacity-50 font-bold text-xs sm:text-sm hover:bg-stone-50 transition-colors flex-1 sm:flex-none"
-                >
-                  Próximo
-                </button>
-              </div>
-            )}
-          </div>
-          
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="bg-stone-100 animate-pulse h-96 rounded-2xl"></div>
               ))
-            ) : (paginatedImoveis && paginatedImoveis.length > 0) ? (
-              paginatedImoveis.map((imovel, index) => (
+            ) : (imoveisFiltrados && imoveisFiltrados.length > 0) ? (
+              imoveisFiltrados.map((imovel, index) => (
                 <div 
                   key={imovel.id} 
                   className="relative"
@@ -1006,7 +954,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                       >
                         <div className="flex items-center gap-4 mb-6">
                           {t.photoUrl ? (
-                            <img src={t.photoUrl} alt={t.name} className="w-14 h-14 rounded-full object-cover border-2 border-primary/10" referrerPolicy="no-referrer" loading="lazy" decoding="async" />
+                            <img src={t.photoUrl} alt={t.name} className="w-14 h-14 rounded-full object-cover border-2 border-primary/10" referrerPolicy="no-referrer" loading="lazy" />
                           ) : (
                             <div className="w-14 h-14 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold text-xl">
                               {t.name.charAt(0)}
@@ -1035,10 +983,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                 </div>
               ) : settings.testimonialStyle === 'marquee' ? (
                 <div className="relative overflow-hidden py-4">
-                  <div 
-                    className="flex w-max gap-6 animate-marquee whitespace-nowrap"
-                    style={{ animationDuration: `${Math.max(testimonials.length * 4, 10)}s` }}
-                  >
+                  <div className="flex gap-6 animate-marquee whitespace-nowrap">
                     {[...testimonials, ...testimonials].map((t, i) => (
                       <div 
                         key={`${t.id}-${i}`}
@@ -1046,7 +991,7 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                       >
                         <div className="flex items-center gap-3 mb-4">
                           {t.photoUrl ? (
-                            <img src={t.photoUrl} alt={t.name} className="w-10 h-10 rounded-full object-cover border border-stone-100" referrerPolicy="no-referrer" loading="lazy" decoding="async" />
+                            <img src={t.photoUrl} alt={t.name} className="w-10 h-10 rounded-full object-cover border border-stone-100" referrerPolicy="no-referrer" loading="lazy" />
                           ) : (
                             <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold text-sm">
                               {t.name.charAt(0)}
@@ -1075,19 +1020,19 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                       className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 flex gap-6 items-start hover:shadow-md transition-shadow"
                     >
                       {t.photoUrl ? (
-                        <img src={t.photoUrl} alt={t.name} className="w-16 h-16 rounded-full object-cover border-2 border-primary/10" referrerPolicy="no-referrer" loading="lazy" decoding="async" />
+                        <img src={t.photoUrl} alt={t.name} className="w-16 h-16 rounded-full object-cover border border-stone-100 shrink-0" referrerPolicy="no-referrer" />
                       ) : (
                         <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold text-2xl shrink-0">
                           {t.name.charAt(0)}
                         </div>
                       )}
                       <div>
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-3 mb-2">
                           <p className="font-bold text-stone-900 text-lg">{t.name}</p>
-                          <p className="text-xs text-stone-400 font-medium uppercase tracking-wider">{t.role}</p>
-                        </div>
-                        <div className="flex text-amber-400 text-xs mb-3">
-                          {"★".repeat(t.rating || 5)}{"☆".repeat(5 - (t.rating || 5))}
+                          <span className="text-xs text-stone-400 font-medium px-2 py-0.5 bg-stone-50 rounded-full">{t.role}</span>
+                          <div className="flex text-amber-400 text-xs">
+                            {"★".repeat(t.rating || 5)}{"☆".repeat(5 - (t.rating || 5))}
+                          </div>
                         </div>
                         <p className="text-stone-600 leading-relaxed italic">"{t.text}"</p>
                       </div>
@@ -1117,28 +1062,30 @@ Retorne apenas o texto da análise formatado em Markdown.`;
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  {testimonials.map((t) => (
+                  {testimonials.map((t, i) => (
                     <div 
                       key={t.id}
-                      className="bg-white p-8 rounded-2xl shadow-sm border border-stone-100 flex flex-col hover:shadow-md transition-shadow"
+                      className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 flex flex-col hover:shadow-md transition-shadow"
                     >
-                      <div className="flex items-center gap-4 mb-6">
+                      <div className="flex items-center gap-4 mb-4">
                         {t.photoUrl ? (
-                          <img src={t.photoUrl} alt={t.name} className="w-14 h-14 rounded-full object-cover border-2 border-primary/10" referrerPolicy="no-referrer" loading="lazy" />
+                          <img src={t.photoUrl} alt={t.name} className="w-12 h-12 rounded-full object-cover border border-stone-100" referrerPolicy="no-referrer" />
                         ) : (
-                          <div className="w-14 h-14 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold text-xl">
+                          <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 font-bold">
                             {t.name.charAt(0)}
                           </div>
                         )}
                         <div>
-                          <p className="font-bold text-stone-900 text-lg leading-tight">{t.name}</p>
-                          <p className="text-xs text-stone-400 font-medium uppercase tracking-wider">{t.role}</p>
-                          <div className="flex text-amber-400 text-xs mt-1">
+                          <p className="font-bold text-stone-900 leading-tight">{t.name}</p>
+                          <div className="flex text-amber-400 text-xs mt-0.5">
                             {"★".repeat(t.rating || 5)}{"☆".repeat(5 - (t.rating || 5))}
                           </div>
                         </div>
                       </div>
-                      <p className="text-stone-600 leading-relaxed mb-4 flex-grow italic text-lg">"{t.text}"</p>
+                      <p className="text-stone-600 text-sm leading-relaxed mb-4 flex-grow italic">"{t.text}"</p>
+                      <div className="pt-4 border-t border-stone-50">
+                        <p className="text-[10px] text-stone-400 uppercase tracking-widest font-bold">{t.role}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1175,20 +1122,18 @@ Retorne apenas o texto da análise formatado em Markdown.`;
         </>
       )}
 
-      <Suspense fallback={<div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>}>
-        {currentPage === '/sobre' && <Sobre onNavigate={navigate} isAdmin={isAdmin} />}
-        {currentPage === '/faq' && <FAQ isAdmin={isAdmin} />}
-        {currentPage === '/blog' && <BlogList onNavigate={navigate} />}
-        {currentPage.startsWith('/blog/') && <BlogPost slug={currentPage.split('/blog/')[1]} onNavigate={navigate} />}
-        {currentPage === '/admin' && isAdmin && <AdminSettings onNavigate={navigate} />}
-        {currentPage === '/admin/blog' && isAdmin && <AdminBlog />}
-        {currentPage === '/admin/discovery' && isAdmin && (
-          <div className="max-w-7xl mx-auto px-4 py-12">
-            <DiscoveryDashboard onAddProperty={handleAddFromDiscovery} />
-          </div>
-        )}
-        {currentPage === '/leiloeiros' && <Leiloeiros />}
-      </Suspense>
+      {currentPage === '/sobre' && <Sobre onNavigate={navigate} isAdmin={isAdmin} />}
+      {currentPage === '/faq' && <FAQ isAdmin={isAdmin} />}
+      {currentPage === '/blog' && <BlogList onNavigate={navigate} />}
+      {currentPage.startsWith('/blog/') && <BlogPost slug={currentPage.split('/blog/')[1]} onNavigate={navigate} />}
+      {currentPage === '/admin' && isAdmin && <AdminSettings onNavigate={navigate} />}
+      {currentPage === '/admin/blog' && isAdmin && <AdminBlog />}
+      {currentPage === '/admin/discovery' && isAdmin && (
+        <div className="max-w-7xl mx-auto px-4 py-12">
+          <DiscoveryDashboard onAddProperty={handleAddFromDiscovery} />
+        </div>
+      )}
+      {currentPage === '/leiloeiros' && <Leiloeiros />}
       
       {editingImovel && createPortal(
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[9999]">
